@@ -25,8 +25,9 @@ Source: App Build Guard Rails.
 
 ## 3. pnpm setup
 
-- [ ] Pin pnpm version in `package.json` via Corepack
-- [ ] Add `preinstall: npx only-allow pnpm`
+- [x] Pin pnpm version in `package.json` via Corepack
+- [x] Add `preinstall: npx only-allow pnpm`
+- [ ] Verify `only-allow` actually blocks a real `npm install`
 - [ ] Document npm-to-pnpm command mapping in README
 
 ## 4. ESLint and Prettier
@@ -82,12 +83,13 @@ Source: App Build Guard Rails.
 
 ## 7. Supply chain security
 
-- [ ] Add `minimumReleaseAge` to `pnpm-workspace.yaml`
-- [ ] Add `blockExoticSubdeps` to `pnpm-workspace.yaml`
-- [ ] Add `trustPolicy: no-downgrade` to `pnpm-workspace.yaml`
+- [x] Add `minimumReleaseAge` to `pnpm-workspace.yaml` (set to 3 days)
+- [ ] Raise `minimumReleaseAge` from 4320 to 10080 once dependencies settle
+- [x] Add `blockExoticSubdeps` to `pnpm-workspace.yaml`
+- [ ] Re-enable `trustPolicy: no-downgrade` — blocked by `eslint-import-resolver-typescript` inside `eslint-config-next`
 - [x] Add `allowBuilds` allowlist to `pnpm-workspace.yaml`
-- [ ] Add `.npmrc` with `save-exact=true`
-- [ ] Add `.npmrc` with `registry=https://registry.npmjs.org/`
+- [x] Add `.npmrc` with `save-exact=true`
+- [x] Add `.npmrc` with `registry=https://registry.npmjs.org/`
 - [ ] Add Socket Firewall to CI
 - [ ] Document Socket Firewall install on dev machines
 - [ ] Document `pnpm store prune` after installing a scanner
