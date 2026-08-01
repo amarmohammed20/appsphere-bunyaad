@@ -32,19 +32,21 @@ Source: App Build Guard Rails.
 
 ## 4. ESLint and Prettier
 
-- [ ] Add `@typescript-eslint` plugin and parser
-- [ ] Add `eslint-plugin-react` and `eslint-plugin-react-hooks`
-- [ ] Add `eslint-plugin-import`
-- [ ] Add Prettier + `eslint-config-prettier` + `eslint-plugin-prettier`
-- [ ] Add `.prettierrc`
-- [ ] Add `.prettierignore`
-- [ ] Rule: `@typescript-eslint/no-unused-vars` with `^_` ignore pattern
-- [ ] Rule: `@typescript-eslint/no-explicit-any` as warn
-- [ ] Rule: `@typescript-eslint/consistent-type-imports` as error
-- [ ] Rule: `import/order` with grouping, newlines, alphabetise
-- [ ] Add `type-check` script
-- [ ] Add `lint` and `lint:fix` scripts
-- [ ] Add `format` script
+- [x] `@typescript-eslint`, react, react-hooks, import plugins — all bundled by `eslint-config-next`
+- [x] Add Prettier + `eslint-config-prettier` (no `eslint-plugin-prettier` — Prettier discourages it)
+- [x] Add `prettier-plugin-tailwindcss` for class sorting
+- [x] Add `.prettierrc`
+- [x] Add `.prettierignore`
+- [x] Rule: `@typescript-eslint/no-unused-vars` with `^_` ignore pattern
+- [x] Rule: `@typescript-eslint/no-explicit-any` as warn
+- [x] Rule: `@typescript-eslint/consistent-type-imports` as error
+- [x] Rule: `import/order` with grouping, newlines, alphabetise
+- [x] Rule: `no-console` as warn, allowing `warn`/`error`
+- [x] Add `type-check` script
+- [x] Add `lint` and `lint:fix` scripts
+- [x] Add `format` and `format:check` scripts
+- [ ] Consider type-aware linting (`no-floating-promises`, `no-misused-promises`) — costs lint speed
+- [ ] Consider stricter tsconfig flags (`noUncheckedIndexedAccess`, `noImplicitOverride`)
 
 ## 5. Environments and Supabase
 
@@ -104,9 +106,12 @@ Source: App Build Guard Rails.
 - [ ] Add Husky
 - [ ] Add lint-staged config
 - [ ] Add `.husky/pre-commit` running lint-staged
-- [ ] Set `strict: true` in `tsconfig.json`
-- [ ] Set `noEmit: true` in `tsconfig.json`
-- [ ] Set `allowJs: false` in `tsconfig.json`
+- [x] Set `strict: true` in `tsconfig.json`
+- [x] Set `noEmit: true` in `tsconfig.json`
+- [x] Set `allowJs: false` in `tsconfig.json`
+- [x] Add `.gitattributes` to force LF line endings
+- [x] Add `.vscode/settings.json` (Prettier on save, ESLint fix on save, workspace TS version)
+- [x] Add `.vscode/extensions.json` recommending Prettier, ESLint, Tailwind
 - [ ] Document commit message convention
 - [ ] Document branch naming convention (`type/kebab-description`, types mirror commit types)
 - [ ] Add `CONTRIBUTING.md` with branch, commit, and PR rules
