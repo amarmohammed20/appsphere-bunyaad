@@ -1,0 +1,4 @@
+# Install scripts are blocked by default; approve each one explicitly.
+allowBuilds:
+  sharp: true # native image binary for next/image
+  unrs-resolver: true # native binding for eslint import resolution
