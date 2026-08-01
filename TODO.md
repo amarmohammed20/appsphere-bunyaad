@@ -106,7 +106,10 @@ Source: App Build Guard Rails.
 - [ ] Set `noEmit: true` in `tsconfig.json`
 - [ ] Set `allowJs: false` in `tsconfig.json`
 - [ ] Document commit message convention
+- [ ] Document branch naming convention (`type/kebab-description`, types mirror commit types)
+- [ ] Add `CONTRIBUTING.md` with branch, commit, and PR rules
 - [ ] Add commitlint
+- [ ] Add branch name check to CI or a git hook
 
 ## 9. Folder structure
 
