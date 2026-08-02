@@ -38,7 +38,7 @@ Source: App Build Guard Rails.
 - [x] Add `.prettierrc`
 - [x] Add `.prettierignore`
 - [x] Rule: `@typescript-eslint/no-unused-vars` with `^_` ignore pattern
-- [x] Rule: `@typescript-eslint/no-explicit-any` as warn
+- [x] Rule: `@typescript-eslint/no-explicit-any` as error
 - [x] Rule: `@typescript-eslint/consistent-type-imports` as error
 - [x] Rule: `import/order` with grouping, newlines, alphabetise
 - [x] Rule: `no-console` as warn, allowing `warn`/`error`
@@ -103,9 +103,10 @@ Source: App Build Guard Rails.
 
 ## 8. Additional config
 
-- [ ] Add Husky
-- [ ] Add lint-staged config
-- [ ] Add `.husky/pre-commit` running lint-staged
+- [x] Add Husky
+- [x] Add lint-staged config
+- [x] Add `.husky/pre-commit` running lint-staged
+- [ ] Decide whether `type-check` belongs in pre-commit or stays CI-only
 - [x] Set `strict: true` in `tsconfig.json`
 - [x] Set `noEmit: true` in `tsconfig.json`
 - [x] Set `allowJs: false` in `tsconfig.json`
