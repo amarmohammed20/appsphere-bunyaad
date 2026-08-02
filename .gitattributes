@@ -1,0 +1,17 @@
+# Normalise line endings to LF everywhere — matches Prettier's endOfLine setting
+# and keeps Windows checkouts from failing format:check.
+* text=auto eol=lf
+
+# Binary files must never be normalised.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.pdf binary
+
+# Generated — collapse in diffs and skip merge conflicts.
+pnpm-lock.yaml linguist-generated=true -diff

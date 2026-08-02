@@ -1,3 +1,6 @@
+# Pin exact versions on install — no caret ranges, no silent patch upgrades.
+saveExact: true
+
 # 3-day cooldown. Raise to 10080 (7 days) once the dependency set has settled.
 minimumReleaseAge: 4320
 

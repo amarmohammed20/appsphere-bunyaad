@@ -32,19 +32,21 @@ Source: App Build Guard Rails.
 
 ## 4. ESLint and Prettier
 
-- [ ] Add `@typescript-eslint` plugin and parser
-- [ ] Add `eslint-plugin-react` and `eslint-plugin-react-hooks`
-- [ ] Add `eslint-plugin-import`
-- [ ] Add Prettier + `eslint-config-prettier` + `eslint-plugin-prettier`
-- [ ] Add `.prettierrc`
-- [ ] Add `.prettierignore`
-- [ ] Rule: `@typescript-eslint/no-unused-vars` with `^_` ignore pattern
-- [ ] Rule: `@typescript-eslint/no-explicit-any` as warn
-- [ ] Rule: `@typescript-eslint/consistent-type-imports` as error
-- [ ] Rule: `import/order` with grouping, newlines, alphabetise
-- [ ] Add `type-check` script
-- [ ] Add `lint` and `lint:fix` scripts
-- [ ] Add `format` script
+- [x] `@typescript-eslint`, react, react-hooks, import plugins — all bundled by `eslint-config-next`
+- [x] Add Prettier + `eslint-config-prettier` (no `eslint-plugin-prettier` — Prettier discourages it)
+- [x] Add `prettier-plugin-tailwindcss` for class sorting
+- [x] Add `.prettierrc`
+- [x] Add `.prettierignore`
+- [x] Rule: `@typescript-eslint/no-unused-vars` with `^_` ignore pattern
+- [x] Rule: `@typescript-eslint/no-explicit-any` as warn
+- [x] Rule: `@typescript-eslint/consistent-type-imports` as error
+- [x] Rule: `import/order` with grouping, newlines, alphabetise
+- [x] Rule: `no-console` as warn, allowing `warn`/`error`
+- [x] Add `type-check` script
+- [x] Add `lint` and `lint:fix` scripts
+- [x] Add `format` and `format:check` scripts
+- [ ] Consider type-aware linting (`no-floating-promises`, `no-misused-promises`) — costs lint speed
+- [ ] Consider stricter tsconfig flags (`noUncheckedIndexedAccess`, `noImplicitOverride`)
 
 ## 5. Environments and Supabase
 
@@ -104,9 +106,12 @@ Source: App Build Guard Rails.
 - [ ] Add Husky
 - [ ] Add lint-staged config
 - [ ] Add `.husky/pre-commit` running lint-staged
-- [ ] Set `strict: true` in `tsconfig.json`
-- [ ] Set `noEmit: true` in `tsconfig.json`
-- [ ] Set `allowJs: false` in `tsconfig.json`
+- [x] Set `strict: true` in `tsconfig.json`
+- [x] Set `noEmit: true` in `tsconfig.json`
+- [x] Set `allowJs: false` in `tsconfig.json`
+- [x] Add `.gitattributes` to force LF line endings
+- [x] Add `.vscode/settings.json` (Prettier on save, ESLint fix on save, workspace TS version)
+- [x] Add `.vscode/extensions.json` recommending Prettier, ESLint, Tailwind
 - [ ] Document commit message convention
 - [ ] Document branch naming convention (`type/kebab-description`, types mirror commit types)
 - [ ] Add `CONTRIBUTING.md` with branch, commit, and PR rules
@@ -402,3 +407,60 @@ Source: App Build Guard Rails.
 - [ ] Vendor gstack agents or adapt our own
 - [ ] Background jobs: Vercel Cron or Supabase Edge Functions
 - [ ] Redis cache: skip for now or add alongside rate limiting
+
+## 28. Deferred — revisit after building something real
+
+Researched, proven, deliberately not doing yet. Full detail in
+[docs/ai-code-quality.md](docs/ai-code-quality.md).
+
+**Why deferred:** the repo is a hello-world page. These rules would be aimed at
+imagined code, not code we have watched an agent get wrong. Build a real
+feature first, see what actually breaks, then add the guardrail that catches it.
+
+### Oxlint as a second, faster linter
+
+Add when the write-time hook exists and ESLint's delay is actually annoying.
+
+- [ ] Add `oxlint` + `oxlint-tsgolint` + `eslint-plugin-oxlint` (pin all three in step)
+- [ ] Add `.oxlintrc.json` with `--type-aware` enabled
+- [ ] Turn off `react/react-in-jsx-scope` — false positive on every JSX file
+- [ ] Wire into ESLint via `oxlint.buildFromOxlintConfigFile('.oxlintrc.json')`, last in the config
+- [ ] Use default import, not named — the package is CJS and named imports crash ESLint
+- [ ] Add `lint:quick` script
+- [ ] Add ADR recording why two linters
+- [ ] Add README table: which linter runs when
+
+**Reason to do it:** ESLint takes ~8s even on an empty project, because config
+loading dominates. Too slow to run after every agent file write. Oxlint
+type-aware is ~2.4s warm. Spike proved the two work together on Next.js — a
+combination with no precedent on GitHub — and the dedup keeps the Next.js and
+a11y rules while handing `no-unused-vars`, `no-explicit-any` and floating
+promises to Oxlint.
+
+**Reason to wait:** it only pays off once the PostToolUse hook exists. Without
+the hook there is no write-time loop to speed up, and it is just a second config
+to maintain. Note the dedup does **not** make ESLint faster — it only stops
+double-reporting.
+
+### Also deferred
+
+- [ ] Type-aware ESLint (`projectService: true`) — big win, big slowdown
+- [ ] `eslint-plugin-boundaries` — needs the folder structure to exist first
+- [ ] `naming-convention` rules — tune against real code, not guesses
+- [ ] Complexity caps (`complexity: 10`, `max-lines-per-function`) — numbers are guesses until we measure
+- [ ] `unicorn/prevent-abbreviations` — needs ESLint 10, and is noisy
+
+### Plugins found in research, not adopted
+
+- [ ] `eslint-plugin-ai-guard` — built for exactly our problem (floating promises,
+      empty catch blocks, hardcoded secrets, SQL injection in AI-written code).
+      Only ~3.5k downloads/month, so too immature for a template every client
+      repo inherits. Recheck adoption later.
+- [ ] `@eslint-community/eslint-comments` — `no-restricted-disable` stops a rule
+      being silenced with a disable comment rather than fixed. Targeted, but a
+      new dependency; wait until we see it actually happen.
+- [ ] `eslint-plugin-no-secrets` — overlaps with the CI secret scanner already
+      planned in section 13.
+- [ ] `eslint-plugin-security`, `SonarJS` — evaluate against real code.
+- [ ] `no-restricted-syntax` to ban enums, `else` chains, hardcoded routes —
+      opinionated; revisit once conventions are settled.
