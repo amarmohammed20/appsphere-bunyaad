@@ -12,6 +12,21 @@ const eslintConfig = defineConfig([
     linterOptions: { reportUnusedDisableDirectives: 'error' },
 
     rules: {
+      // Type safety
+      '@typescript-eslint/no-explicit-any': 'error',
+      '@typescript-eslint/no-non-null-assertion': 'error',
+      '@typescript-eslint/array-type': ['error', { default: 'array' }],
+      // `as const` is unaffected — it is a const assertion, not a type assertion.
+      '@typescript-eslint/consistent-type-assertions': ['error', { assertionStyle: 'never' }],
+      '@typescript-eslint/consistent-type-imports': [
+        'error',
+        { prefer: 'type-imports', fixStyle: 'inline-type-imports' },
+      ],
+
+      // Correctness
+      'require-await': 'error',
+      eqeqeq: ['error', 'always', { null: 'ignore' }],
+      'no-param-reassign': ['error', { props: true }],
       '@typescript-eslint/no-unused-vars': [
         'error',
         {
@@ -21,18 +36,9 @@ const eslintConfig = defineConfig([
         },
       ],
 
-      '@typescript-eslint/no-explicit-any': 'error',
-
-      // `as const` is unaffected — it is a const assertion, not a type assertion.
-      '@typescript-eslint/consistent-type-assertions': ['error', { assertionStyle: 'never' }],
-
-      '@typescript-eslint/no-non-null-assertion': 'error',
-
-      '@typescript-eslint/consistent-type-imports': [
-        'error',
-        { prefer: 'type-imports', fixStyle: 'inline-type-imports' },
-      ],
-
+      // Imports
+      'import/no-duplicates': 'error',
+      'import/no-cycle': 'error',
       'import/order': [
         'error',
         {
@@ -43,16 +49,11 @@ const eslintConfig = defineConfig([
         },
       ],
 
-      'import/no-duplicates': 'error',
-
-      'import/no-cycle': 'error',
-
-      eqeqeq: ['error', 'always', { null: 'ignore' }],
-
-      'no-param-reassign': ['error', { props: true }],
-
+      // Readability
+      'object-shorthand': 'error',
+      'prefer-arrow-callback': ['error', { allowNamedFunctions: false }],
       'no-nested-ternary': 'error',
-
+      'react/jsx-fragments': ['error', 'syntax'],
       'no-console': ['warn', { allow: ['warn', 'error'] }],
     },
   },
