@@ -1,14 +1,22 @@
-# Fast checks on staged files only. Whole-repo work belongs in CI.
+#!/bin/sh
 
-# CI runs the full suite already.
 [ -n "$CI" ] && exit 0
 
 if [ ! -x ./node_modules/.bin/lint-staged ]; then
-  echo "pre-commit: lint-staged is not installed." >&2
-  echo "  Run 'pnpm install' before committing." >&2
+  echo "lint-staged is not installed in this worktree."
+  echo "Run 'pnpm install' before committing."
   exit 1
 fi
 
-# `pnpm exec` pins resolution to this repo's node_modules.
-# `--quiet` hides progress chatter; failures still print in full.
-pnpm exec lint-staged --quiet
+echo "Running pre-commit checks..."
+
+echo "Linting and formatting staged files..."
+pnpm exec lint-staged --quiet || {
+  echo ""
+  echo "Lint failed. Fix the errors above, then stage and commit again."
+  echo "  pnpm lint:fix    auto-fix what can be fixed"
+  exit 1
+}
+
+echo "All pre-commit checks passed"
+exit 0
