@@ -447,5 +447,20 @@ double-reporting.
 - [ ] Type-aware ESLint (`projectService: true`) — big win, big slowdown
 - [ ] `eslint-plugin-boundaries` — needs the folder structure to exist first
 - [ ] `naming-convention` rules — tune against real code, not guesses
-- [ ] Complexity caps (`max-lines-per-function` etc.) — numbers are guesses until we measure
+- [ ] Complexity caps (`complexity: 10`, `max-lines-per-function`) — numbers are guesses until we measure
 - [ ] `unicorn/prevent-abbreviations` — needs ESLint 10, and is noisy
+
+### Plugins found in research, not adopted
+
+- [ ] `eslint-plugin-ai-guard` — built for exactly our problem (floating promises,
+      empty catch blocks, hardcoded secrets, SQL injection in AI-written code).
+      Only ~3.5k downloads/month, so too immature for a template every client
+      repo inherits. Recheck adoption later.
+- [ ] `@eslint-community/eslint-comments` — `no-restricted-disable` stops a rule
+      being silenced with a disable comment rather than fixed. Targeted, but a
+      new dependency; wait until we see it actually happen.
+- [ ] `eslint-plugin-no-secrets` — overlaps with the CI secret scanner already
+      planned in section 13.
+- [ ] `eslint-plugin-security`, `SonarJS` — evaluate against real code.
+- [ ] `no-restricted-syntax` to ban enums, `else` chains, hardcoded routes —
+      opinionated; revisit once conventions are settled.

@@ -8,6 +8,9 @@ const eslintConfig = defineConfig([
   ...nextTs,
 
   {
+    // Flags disable comments that no longer suppress anything.
+    linterOptions: { reportUnusedDisableDirectives: 'error' },
+
     rules: {
       '@typescript-eslint/no-unused-vars': [
         'error',
@@ -39,6 +42,16 @@ const eslintConfig = defineConfig([
           alphabetize: { order: 'asc', caseInsensitive: true },
         },
       ],
+
+      'import/no-duplicates': 'error',
+
+      'import/no-cycle': 'error',
+
+      eqeqeq: ['error', 'always', { null: 'ignore' }],
+
+      'no-param-reassign': ['error', { props: true }],
+
+      'no-nested-ternary': 'error',
 
       'no-console': ['warn', { allow: ['warn', 'error'] }],
     },
