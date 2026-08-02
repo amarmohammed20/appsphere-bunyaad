@@ -407,3 +407,45 @@ Source: App Build Guard Rails.
 - [ ] Vendor gstack agents or adapt our own
 - [ ] Background jobs: Vercel Cron or Supabase Edge Functions
 - [ ] Redis cache: skip for now or add alongside rate limiting
+
+## 28. Deferred — revisit after building something real
+
+Researched, proven, deliberately not doing yet. Full detail in
+[docs/ai-code-quality.md](docs/ai-code-quality.md).
+
+**Why deferred:** the repo is a hello-world page. These rules would be aimed at
+imagined code, not code we have watched an agent get wrong. Build a real
+feature first, see what actually breaks, then add the guardrail that catches it.
+
+### Oxlint as a second, faster linter
+
+Add when the write-time hook exists and ESLint's delay is actually annoying.
+
+- [ ] Add `oxlint` + `oxlint-tsgolint` + `eslint-plugin-oxlint` (pin all three in step)
+- [ ] Add `.oxlintrc.json` with `--type-aware` enabled
+- [ ] Turn off `react/react-in-jsx-scope` — false positive on every JSX file
+- [ ] Wire into ESLint via `oxlint.buildFromOxlintConfigFile('.oxlintrc.json')`, last in the config
+- [ ] Use default import, not named — the package is CJS and named imports crash ESLint
+- [ ] Add `lint:quick` script
+- [ ] Add ADR recording why two linters
+- [ ] Add README table: which linter runs when
+
+**Reason to do it:** ESLint takes ~8s even on an empty project, because config
+loading dominates. Too slow to run after every agent file write. Oxlint
+type-aware is ~2.4s warm. Spike proved the two work together on Next.js — a
+combination with no precedent on GitHub — and the dedup keeps the Next.js and
+a11y rules while handing `no-unused-vars`, `no-explicit-any` and floating
+promises to Oxlint.
+
+**Reason to wait:** it only pays off once the PostToolUse hook exists. Without
+the hook there is no write-time loop to speed up, and it is just a second config
+to maintain. Note the dedup does **not** make ESLint faster — it only stops
+double-reporting.
+
+### Also deferred
+
+- [ ] Type-aware ESLint (`projectService: true`) — big win, big slowdown
+- [ ] `eslint-plugin-boundaries` — needs the folder structure to exist first
+- [ ] `naming-convention` rules — tune against real code, not guesses
+- [ ] Complexity caps (`max-lines-per-function` etc.) — numbers are guesses until we measure
+- [ ] `unicorn/prevent-abbreviations` — needs ESLint 10, and is noisy

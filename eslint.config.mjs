@@ -9,7 +9,6 @@ const eslintConfig = defineConfig([
 
   {
     rules: {
-      // Unused code is a bug unless deliberately named with a leading underscore.
       '@typescript-eslint/no-unused-vars': [
         'error',
         {
@@ -19,16 +18,18 @@ const eslintConfig = defineConfig([
         },
       ],
 
-      // `any` opts out of type safety — allowed, but it must be a visible decision.
-      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-explicit-any': 'error',
 
-      // Type-only imports are erased at build time; mixing them bloats the bundle.
+      // `as const` is unaffected — it is a const assertion, not a type assertion.
+      '@typescript-eslint/consistent-type-assertions': ['error', { assertionStyle: 'never' }],
+
+      '@typescript-eslint/no-non-null-assertion': 'error',
+
       '@typescript-eslint/consistent-type-imports': [
         'error',
         { prefer: 'type-imports', fixStyle: 'inline-type-imports' },
       ],
 
-      // A predictable import order keeps diffs small and reviews fast.
       'import/order': [
         'error',
         {
@@ -39,12 +40,11 @@ const eslintConfig = defineConfig([
         },
       ],
 
-      // Server code logs through the app logger, not the console.
       'no-console': ['warn', { allow: ['warn', 'error'] }],
     },
   },
 
-  // Must come last — turns off every rule that would fight Prettier.
+  // Must come last — disables every rule that would conflict with Prettier.
   prettier,
 
   globalIgnores(['.next/**', 'out/**', 'build/**', 'next-env.d.ts']),
