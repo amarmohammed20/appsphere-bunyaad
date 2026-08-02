@@ -2,21 +2,30 @@
 
 [ -n "$CI" ] && exit 0
 
+if [ -t 1 ] && [ -z "$NO_COLOR" ]; then
+  GREEN=$(printf '\033[32m')
+  RED=$(printf '\033[31m')
+  DIM=$(printf '\033[2m')
+  RESET=$(printf '\033[0m')
+else
+  GREEN='' RED='' DIM='' RESET=''
+fi
+
 if [ ! -x ./node_modules/.bin/lint-staged ]; then
-  echo "lint-staged is not installed in this worktree."
-  echo "Run 'pnpm install' before committing."
+  echo "${RED}✗ lint-staged is not installed in this worktree.${RESET}"
+  echo "  Run 'pnpm install' before committing."
   exit 1
 fi
 
-echo "Running pre-commit checks..."
+echo "${DIM}Running pre-commit checks...${RESET}"
 
-echo "Linting and formatting staged files..."
+echo "${DIM}  Linting and formatting staged files...${RESET}"
 pnpm exec lint-staged --quiet || {
   echo ""
-  echo "Lint failed. Fix the errors above, then stage and commit again."
-  echo "  pnpm lint:fix    auto-fix what can be fixed"
+  echo "${RED}✗ Lint failed.${RESET} Fix the errors above, then stage and commit again."
+  echo "  ${DIM}pnpm lint:fix    auto-fix what can be fixed${RESET}"
   exit 1
 }
 
-echo "All pre-commit checks passed"
+echo "${GREEN}✓ All pre-commit checks passed${RESET}"
 exit 0
