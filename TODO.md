@@ -55,7 +55,7 @@ Source: App Build Guard Rails.
 - [x] Add `lib/supabase/client.ts`
 - [x] Add `lib/supabase/server.ts`
 - [x] Add `lib/supabase/middleware.ts`
-- [ ] Add `middleware.ts` for session refresh
+- [x] Add `proxy.ts` for session refresh (Next 16 renamed middleware to proxy)
 - [ ] Add `src/@types/database.types.ts` placeholder
 - [ ] Add script to generate Supabase types
 - [ ] Add DB scripts: start, stop, reset, diff, push, pull
@@ -142,9 +142,9 @@ Decided: **feature-first**. Reasoning in
 - [x] No barrel files — direct imports (see src/features/README.md)
 - [ ] Document naming conventions (kebab-case dirs, PascalCase components)
 - [x] Close fail-open holes: no-unknown-files, no-unknown-dependencies, external SDK
-- [x] Add `lint:boundaries` canary proving the rules actually fire
-- [ ] Run `lint:boundaries` in CI (16s, too slow for pre-commit)
-- [ ] Classify `src/middleware.ts` via `boundaries/files` when it is added
+- [x] Add `test:boundaries` canary proving the rules actually fire
+- [ ] Run `test:boundaries` in CI and pre-push (22s, too slow for pre-commit)
+- [x] Classify `src/proxy.ts` via `boundaries/files`
 - [ ] Add path-casing check to CI
 - [ ] Rewrite guard rails doc Section 9 to match
 

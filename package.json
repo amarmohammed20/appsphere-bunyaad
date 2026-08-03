@@ -9,7 +9,7 @@
     "start": "next start",
     "lint": "eslint",
     "lint:fix": "eslint --fix",
-    "lint:boundaries": "node scripts/boundaries-canary.mjs",
+    "test:boundaries": "node scripts/boundaries-canary.mjs",
     "type-check": "tsc --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
