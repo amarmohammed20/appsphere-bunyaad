@@ -18,39 +18,38 @@ features/<domain>/
 ├── data/         constants.ts, labels.ts — compile-time literals only
 ├── utils/        pure functions for this domain — no IO, no React
 ├── hooks/        client hooks used only by this domain
-├── types.ts
-├── index.ts      client-safe public API
-└── server.ts     server-only public API
+└── types.ts
 ```
 
-## Two entry points, not one
+## No barrel files
 
-`index.ts` is client-safe: components, schemas, types, utils, labels.
-`server.ts` carries `import 'server-only'` and exports queries, mutations and
-actions.
-
-They are split because a single barrel breaks the build. The moment a Client
-Component imports anything from the feature, a combined barrel pulls
-`server-only` into the browser bundle and the build fails. This is not
-theoretical — it was reproduced before the split.
+Import the file you want, directly:
 
 ```ts
-// Client Component — fine
-import { contactEnquirySchema } from '@/features/contact';
-
-// Server Component / Route Handler — fine
-import { listEnquiries } from '@/features/contact/server';
+import { ContactForm } from '@/features/contact/components/ContactForm';
+import { listEnquiries } from '@/features/contact/server/queries';
 ```
+
+Not an `index.ts` that re-exports everything. Reasons:
+
+- The `@/` alias already gives short paths, which is the main thing barrels are
+  sold on.
+- Boundaries are enforced by lint on folder paths, so a barrel is not needed to
+  create one.
+- A single barrel exporting both browser and server code breaks the build the
+  moment a Client Component imports from it — `server-only` ends up in the
+  browser bundle. Reproduced before this rule existed.
+
+Revisit if imports ever get genuinely unwieldy.
 
 ## Rules
 
 - **Features never import other features.** Compose them in `app/`.
-- **Import a feature only through `index.ts` or `server.ts`**, never a deeper
-  path. One exception: `app/api/**/route.ts` may re-export from
-  `features/*/api/*`, because Next requires a file at that exact path.
 - **Client Components never query Supabase.** They call a server action.
   Auth is the exception — `signIn`, `signOut` and `onAuthStateChange` run in
   the browser using `lib/supabase/client.ts`.
+- **Only `server/` imports the Supabase server client.** Not `components/`,
+  not `api/`.
 - **Server actions are public HTTP endpoints.** Anyone can invoke them.
   Validate every input and check the session first unless the action is
   deliberately public.
@@ -92,8 +91,8 @@ There is no top-level `helpers/` or `utils/`. One home per concept.
 **Shared domain code.** A schema, enum or type that two features both need goes
 in `types/` if it is only types, or `lib/` if it is a pure function. If it has
 real domain behaviour, it belongs to one feature and the other imports it
-through that feature's barrel — that is the one place features may reference
-each other, and it is a signal the boundary may be wrong.
+directly — that is the one place features may reference each other, and it is a
+signal the boundary may be wrong.
 
 **Page-level UI that is not a domain** — a marketing hero, a footer — goes in
 `components/shared/`. Do not invent a feature for it.
@@ -107,7 +106,7 @@ export { POST } from '@/features/contact/api/publicEnquiry';
 
 ```tsx
 // app/(marketing)/contact/page.tsx
-import { ContactForm } from '@/features/contact';
+import { ContactForm } from '@/features/contact/components/ContactForm';
 
 export default function ContactPage() {
   return <ContactForm />;
