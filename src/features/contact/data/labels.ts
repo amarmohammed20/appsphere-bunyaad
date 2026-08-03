@@ -7,6 +7,7 @@ export const contactLabels = {
   submitting: 'Sending…',
   success: 'Thanks — we will reply within one working day.',
   failure: 'Something went wrong. Please try again.',
+  validationFailure: 'Please check the form and try again.',
 } as const;
 
 export const enquiryStatusLabels = {

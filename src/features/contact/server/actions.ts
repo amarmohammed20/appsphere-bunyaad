@@ -3,13 +3,19 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
-import { createClient } from '@/lib/supabase/server';
-
+import { contactLabels } from '../data/labels';
 import { contactEnquirySchema } from '../schemas/contact';
 import { type SubmitEnquiryResult } from '../types';
 
-/** Writes. Called from Client Components; never call Supabase from the client. */
+import { createEnquiry } from './createEnquiry';
 
+/**
+ * Server actions are public HTTP endpoints — anyone can invoke them. Validate
+ * every input, and check the session first on anything that is not deliberately
+ * public. This one is public by design.
+ *
+ * Keep actions thin: parse, authorise, delegate, revalidate.
+ */
 export async function submitEnquiry(formData: FormData): Promise<SubmitEnquiryResult> {
   const parsed = contactEnquirySchema.safeParse({
     name: formData.get('name'),
@@ -20,24 +26,16 @@ export async function submitEnquiry(formData: FormData): Promise<SubmitEnquiryRe
   if (!parsed.success) {
     return {
       ok: false,
-      error: 'Please check the form and try again.',
+      error: contactLabels.validationFailure,
       fieldErrors: z.flattenError(parsed.error).fieldErrors,
     };
   }
 
-  const supabase = await createClient();
-  const { error } = await supabase.from('contact_enquiries').insert({
-    name: parsed.data.name,
-    email: parsed.data.email,
-    message: parsed.data.message,
-    status: 'new',
-  });
+  const result = await createEnquiry(parsed.data);
 
-  if (error) {
-    // Generic message to the client; the real error goes to the logger.
-    return { ok: false, error: 'Something went wrong. Please try again.' };
+  if (result.ok) {
+    revalidatePath('/contact');
   }
 
-  revalidatePath('/contact');
-  return { ok: true };
+  return result;
 }
