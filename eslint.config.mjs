@@ -3,9 +3,13 @@ import nextVitals from 'eslint-config-next/core-web-vitals';
 import nextTs from 'eslint-config-next/typescript';
 import prettier from 'eslint-config-prettier';
 
+import { boundariesConfig } from './eslint.boundaries.mjs';
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
+
+  boundariesConfig,
 
   {
     // Flags disable comments that no longer suppress anything.

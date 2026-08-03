@@ -136,10 +136,15 @@ Decided: **feature-first**. Reasoning in
 - [x] Add Zod
 - [x] Add `features/contact/` as the reference implementation
 - [ ] Add route groups `(marketing)` and `(app)` once there are real pages
-- [ ] Enforce with `eslint-plugin-boundaries`, deny-by-default
-- [ ] Rule: features never import other features
+- [x] Enforce with `eslint-plugin-boundaries`, deny-by-default
+- [x] Rule: features never import other features
+- [x] Rule: only server/ may import lib/supabase
 - [x] No barrel files — direct imports (see src/features/README.md)
 - [ ] Document naming conventions (kebab-case dirs, PascalCase components)
+- [x] Close fail-open holes: no-unknown-files, no-unknown-dependencies, external SDK
+- [x] Add `lint:boundaries` canary proving the rules actually fire
+- [ ] Run `lint:boundaries` in CI (16s, too slow for pre-commit)
+- [ ] Classify `src/middleware.ts` via `boundaries/files` when it is added
 - [ ] Add path-casing check to CI
 - [ ] Rewrite guard rails doc Section 9 to match
 
