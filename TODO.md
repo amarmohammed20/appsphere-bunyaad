@@ -138,7 +138,7 @@ Decided: **feature-first**. Reasoning in
 - [ ] Add route groups `(marketing)` and `(app)` once there are real pages
 - [ ] Enforce with `eslint-plugin-boundaries`, deny-by-default
 - [ ] Rule: features never import other features
-- [ ] Rule: import a feature only through its `index.ts`
+- [x] No barrel files — direct imports (see src/features/README.md)
 - [ ] Document naming conventions (kebab-case dirs, PascalCase components)
 - [ ] Add path-casing check to CI
 - [ ] Rewrite guard rails doc Section 9 to match

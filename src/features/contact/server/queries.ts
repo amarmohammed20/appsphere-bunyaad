@@ -4,36 +4,65 @@ import { createClient } from '@/lib/supabase/server';
 
 import { type ContactEnquiry } from '../types';
 
-/** Reads. Every Supabase query for this feature lives here. */
+type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
-export async function listEnquiries(): Promise<ContactEnquiry[]> {
-  const supabase = await createClient();
+interface EnquiryRow {
+  id: string;
+  name: string;
+  email: string;
+  message: string;
+  status: ContactEnquiry['status'];
+  created_at: string;
+}
 
-  const { data, error } = await supabase
-    .from('contact_enquiries')
-    .select('id, name, email, message, status, created_at')
-    .order('created_at', { ascending: false });
+const ENQUIRY_COLUMNS = 'id, name, email, message, status, created_at';
 
-  if (error) {
-    throw new Error('Failed to load enquiries');
+async function requireSignedInUser(supabase: SupabaseServerClient) {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (user === null) {
+    throw new Error('Not authorised');
   }
 
-  return data.map((row) => ({
+  return user;
+}
+
+function toContactEnquiry(row: EnquiryRow): ContactEnquiry {
+  return {
     id: row.id,
     name: row.name,
     email: row.email,
     message: row.message,
     status: row.status,
     createdAt: row.created_at,
-  }));
+  };
+}
+
+export async function listEnquiries(): Promise<ContactEnquiry[]> {
+  const supabase = await createClient();
+  await requireSignedInUser(supabase);
+
+  const { data, error } = await supabase
+    .from('contact_enquiries')
+    .select(ENQUIRY_COLUMNS)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    throw new Error('Failed to load enquiries');
+  }
+
+  return data.map(toContactEnquiry);
 }
 
 export async function getEnquiry(id: string): Promise<ContactEnquiry | null> {
   const supabase = await createClient();
+  await requireSignedInUser(supabase);
 
   const { data, error } = await supabase
     .from('contact_enquiries')
-    .select('id, name, email, message, status, created_at')
+    .select(ENQUIRY_COLUMNS)
     .eq('id', id)
     .maybeSingle();
 
@@ -41,16 +70,5 @@ export async function getEnquiry(id: string): Promise<ContactEnquiry | null> {
     throw new Error('Failed to load enquiry');
   }
 
-  if (data === null) {
-    return null;
-  }
-
-  return {
-    id: data.id,
-    name: data.name,
-    email: data.email,
-    message: data.message,
-    status: data.status,
-    createdAt: data.created_at,
-  };
+  return data === null ? null : toContactEnquiry(data);
 }

@@ -56,22 +56,40 @@ Revisit if imports ever get genuinely unwieldy.
 - **Keep actions and handlers thin.** Parse, authorise, delegate, revalidate.
   The write itself lives in a plain function in `server/` so the action and any
   HTTP handler share it.
+- **Queries check authorisation themselves.** Row-level security is a second
+  line of defence, not the only one. Mark each query `requires session` or
+  `deliberately public` so the choice is always visible.
 - `app/` holds routing only.
+
+## Two conventions worth stating
+
+**Reads throw, writes return a result.** A failed query throws, so it reaches
+the error boundary — nothing sensible can be rendered without the data. A
+failed write returns `{ ok: false, error }`, because the form needs to show it
+and stay on screen. Follow the same split in every feature.
+
+**One file per write, named after the verb.** `createEnquiry.ts`,
+`cancelInvoice.ts`. Reads are grouped in `queries.ts` because they share
+shape; writes are not, because each one owns its own rules and gets called from
+more than one place.
+
+**Revalidate where data is displayed, not where it was written.** A write on
+`/contact` that only appears on `/admin/enquiries` revalidates the latter.
 
 ## Where things go
 
-| Thing                          | Location                               |
-| ------------------------------ | -------------------------------------- |
-| A form component               | `components/`                          |
-| Reading from the database      | `server/queries.ts`                    |
-| Writing to the database        | a plain function in `server/`          |
-| A mutation a component calls   | `server/actions.ts`                    |
-| Validation                     | `schemas/`                             |
-| Button text, headings, options | `data/labels.ts`                       |
-| Magic numbers, status lists    | `data/constants.ts`                    |
-| Formatting, parsing, mapping   | `utils/`                               |
-| A webhook or public endpoint   | `api/`                                 |
-| A test                         | next to the file it tests, `*.test.ts` |
+| Thing                          | Location                                               |
+| ------------------------------ | ------------------------------------------------------ |
+| A form component               | `components/`                                          |
+| Reading from the database      | `server/queries.ts`                                    |
+| Writing to the database        | a plain function in `server/`                          |
+| A mutation a component calls   | `server/actions.ts`                                    |
+| Validation                     | `schemas/`                                             |
+| Button text, headings, options | `data/labels.ts`                                       |
+| Magic numbers, status lists    | `data/constants.ts`                                    |
+| Formatting, parsing, mapping   | `utils/`                                               |
+| A webhook or public endpoint   | `api/`                                                 |
+| A test                         | next to the file it tests, `*.test.ts` (no runner yet) |
 
 `data/` holds compile-time literals only. If a file in `data/` imports anything
 other than a type, it is in the wrong folder.

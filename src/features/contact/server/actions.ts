@@ -34,6 +34,7 @@ export async function submitEnquiry(formData: FormData): Promise<SubmitEnquiryRe
   const result = await createEnquiry(parsed.data);
 
   if (result.ok) {
+    // Correct once a page lists enquiries; /contact only shows the form.
     revalidatePath('/contact');
   }
 

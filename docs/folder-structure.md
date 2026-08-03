@@ -30,7 +30,7 @@ src/
 └── types/
 ```
 
-- **Used by:** our guard rails doc, appsphere, theflexstorage, itc
+- **Used by:** our guard rails doc, three of our own repos
 - **For:** easy to state, easy to lint by path, obvious where a _kind_ of thing
   goes
 - **Against:** one feature is scattered across five folders. Deleting a feature
@@ -53,10 +53,10 @@ src/
 └── app/            routes
 ```
 
-- **Used by:** Bulletproof React, Unicare
+- **Used by:** Bulletproof React, one of our own repos
 - **For:** a feature is one folder — add, delete, or hand it over in one place
 - **Against:** needs a hard rule for what is shared vs feature-owned, or the
-  shared layer duplicates (Unicare has three homes for components)
+  shared layer duplicates (one of ours has three homes for components)
 
 ### 3. Bulletproof React — feature-first with a unidirectional rule
 
@@ -111,24 +111,24 @@ routes into `features/` or `lib/`.
 
 ## Evidence
 
-### appsphere / theflexstorage / itc — layer-first
+### Three of our repos — layer-first
 
-| Folder       | appsphere   | theflexstorage | itc       |
-| ------------ | ----------- | -------------- | --------- |
-| `@types`     | yes         | yes            | yes       |
-| `app`        | yes         | yes            | yes       |
-| `components` | yes         | yes            | yes       |
-| `data`       | yes         | yes            | yes       |
-| `lib`        | yes         | yes            | yes       |
-| `helpers`    | yes         | no             | yes       |
-| `utils`      | yes         | no             | yes       |
-| schemas      | `schema`    | `schemas`      | `schemas` |
-| `hooks`      | yes         | no             | no        |
-| `actions`    | no          | no             | yes       |
-| `server`     | no          | no             | yes       |
-| `database`   | no          | yes            | no        |
-| `Layouts`    | no          | yes            | no        |
-| config       | `constants` | no             | `config`  |
+| Folder       | Repo A      | Repo B    | Repo C    |
+| ------------ | ----------- | --------- | --------- |
+| `@types`     | yes         | yes       | yes       |
+| `app`        | yes         | yes       | yes       |
+| `components` | yes         | yes       | yes       |
+| `data`       | yes         | yes       | yes       |
+| `lib`        | yes         | yes       | yes       |
+| `helpers`    | yes         | no        | yes       |
+| `utils`      | yes         | no        | yes       |
+| schemas      | `schema`    | `schemas` | `schemas` |
+| `hooks`      | yes         | no        | no        |
+| `actions`    | no          | no        | yes       |
+| `server`     | no          | no        | yes       |
+| `database`   | no          | yes       | no        |
+| `Layouts`    | no          | yes       | no        |
+| config       | `constants` | no        | `config`  |
 
 Survived in all three: `@types`, `app`, `components`, `data`, `lib`.
 Everything else diverged.
@@ -144,7 +144,7 @@ Problems visible without opening a file:
 
 The documented structure is aspirational, not descriptive.
 
-### Unicare (irenictech) — feature-first
+### A fourth repo — feature-first
 
 The most mature example, and the most instructive.
 
@@ -487,7 +487,7 @@ Useful for market picture and consensus:
 
 ## What the evidence says
 
-**Feature-first wins the axis.** Unicare is the largest and most mature of the
+**Feature-first wins the axis.** That repo is the largest and most mature of the
 four, and co-locating a feature is the part that clearly worked.
 
 **But "features exist" is not a structure.** Every repo here decayed the same
@@ -801,34 +801,27 @@ Layer-first — `helpers/`? `lib/`? `actions/`? This is the ambiguous one, and
 ambiguity is what decayed every repo examined above.
 Feature-first — `features/regrade-quotes/`. Nowhere else is legal.
 
-## Open questions
+## The decision
 
-- What are the fixed folders inside a feature, and are any optional?
-- Where does genuinely shared UI live, and what is the rule for promoting
-  something into it?
-- Do we keep `data/` for static copy, given it survived in all three repos?
-- `@types/` or `types/` — every repo says `@types/`, the doc says `types/`.
-- Where do Supabase clients and DB calls live, given every feature needs them?
-- Does marketing versus app (subdomain split) change the top level?
-- What does an agent grep for to find a thing? Structure has to be guessable
-  from domain plus layer alone.
+Feature-first, with these resolutions to the questions this research raised:
 
-## Not yet done
+- **Fixed folders inside a feature**, only create what you need: `actions/`,
+  `api/`, `components/`, `server/`, `schemas/`, `data/`, `utils/`, `hooks/`,
+  `types.ts`.
+- **Shared UI** lives in `components/shared/`; promote when a second feature
+  needs it.
+- **`data/` is kept** for static copy and constants — compile-time literals
+  only, never data access.
+- **`types/`, not `@types/`** — the legacy convention was not worth carrying.
+- **Supabase clients** live in `lib/supabase/`; queries live in each feature's
+  `server/`.
+- **No barrel files** — direct imports, since the `@/` alias already gives
+  short paths.
+- **Enforced by `eslint-plugin-boundaries`**, deny-by-default.
 
-- Test candidate structures against concrete scenarios: a login form, its Zod
-  schema, its DB call, its copy. If two people place them differently, the
-  structure is wrong.
-- Confirm the chosen structure can be expressed as `eslint-plugin-boundaries`
-  element types.
-- Decide whether route colocation (`_components/`) is used alongside features,
-  and what the promotion rule is.
-- Look at shadcn/ui's expected layout — we are adopting it, and it assumes
-  `components/ui/` plus `lib/utils.ts`.
-- Check what `create-t3-app` and Vercel's own templates ship.
-
-## Amar's research
-
-<!-- Findings to be added -->
+The full shape and rules live in
+[src/features/README.md](../src/features/README.md), which is the file to read
+when writing code. This document is the reasoning behind it.
 
 ## Sources
 
