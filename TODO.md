@@ -52,14 +52,15 @@ Source: App Build Guard Rails.
 
 - [ ] Run `supabase init` and commit `config.toml`
 - [ ] Create `supabase/migrations/` folder
-- [ ] Add `lib/supabase/client.ts`
-- [ ] Add `lib/supabase/server.ts`
-- [ ] Add `lib/supabase/middleware.ts`
+- [x] Add `lib/supabase/client.ts`
+- [x] Add `lib/supabase/server.ts`
+- [x] Add `lib/supabase/middleware.ts`
 - [ ] Add `middleware.ts` for session refresh
 - [ ] Add `src/@types/database.types.ts` placeholder
 - [ ] Add script to generate Supabase types
 - [ ] Add DB scripts: start, stop, reset, diff, push, pull
-- [ ] Add `.env.example` with all required keys
+- [x] Add `.env.example` with all required keys
+- [x] Add `lib/env.ts` with Zod validation + SKIP_ENV_VALIDATION escape hatch
 - [ ] Document three-environment setup (local, staging, production)
 - [ ] Document migration promotion workflow (local → staging → production)
 - [ ] Create staging and production Supabase projects
@@ -121,19 +122,26 @@ Source: App Build Guard Rails.
 
 ## 9. Folder structure
 
-- [ ] Create `src/components/` with domain subfolder pattern
-- [ ] Create `src/components/shared/`
-- [ ] Create `src/data/` for static copy and config
-- [ ] Create `src/helpers/` for pure functions
-- [ ] Create `src/lib/` for integrations
-- [ ] Create `src/schemas/` for Zod schemas
-- [ ] Create `src/types/models/`
-- [ ] Add Zod
-- [ ] Document layer responsibilities (what goes where, what never does)
-- [ ] Document naming conventions (kebab-case dirs, file casing)
-- [ ] Document barrel file policy
-- [ ] Document structure anti-patterns
+Decided: **feature-first**. Reasoning in
+[docs/folder-structure.md](docs/folder-structure.md), shareable summary in
+[docs/folder-structure-options.md](docs/folder-structure-options.md).
+
+- [x] Create `src/features/` — one folder per domain
+- [x] Create `src/components/ui/` (shadcn) and `src/components/shared/`
+- [x] Create `src/lib/supabase/`
+- [x] Create `src/hooks/` for cross-feature hooks only
+- [x] Create `src/types/`
+- [x] Document the required feature shape in `src/features/README.md`
+- [x] No `helpers/`, no `utils/`, no `data/` at top level — one home per concept
+- [x] Add Zod
+- [x] Add `features/contact/` as the reference implementation
+- [ ] Add route groups `(marketing)` and `(app)` once there are real pages
+- [ ] Enforce with `eslint-plugin-boundaries`, deny-by-default
+- [ ] Rule: features never import other features
+- [ ] Rule: import a feature only through its `index.ts`
+- [ ] Document naming conventions (kebab-case dirs, PascalCase components)
 - [ ] Add path-casing check to CI
+- [ ] Rewrite guard rails doc Section 9 to match
 
 ## 10. BugBot
 
