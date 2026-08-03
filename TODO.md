@@ -60,7 +60,7 @@ Source: App Build Guard Rails.
 - [ ] Add script to generate Supabase types
 - [ ] Add DB scripts: start, stop, reset, diff, push, pull
 - [x] Add `.env.example` with all required keys
-- [x] Add `lib/env.ts` with Zod validation + SKIP_ENV_VALIDATION escape hatch
+- [x] Add `lib/env.ts` — validates only when Supabase is configured, so a fresh clone runs
 - [ ] Document three-environment setup (local, staging, production)
 - [ ] Document migration promotion workflow (local → staging → production)
 - [ ] Create staging and production Supabase projects
