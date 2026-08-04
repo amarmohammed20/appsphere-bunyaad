@@ -175,7 +175,9 @@ Decided: **feature-first**. Reasoning in
 - [ ] Document naming conventions (kebab-case dirs, PascalCase components)
 - [x] Close fail-open holes: no-unknown-files, no-unknown-dependencies, external SDK
 - [x] Add `test:boundaries` canary proving the rules actually fire
-- [x] Run `test:boundaries` in pre-push (22s, too slow for pre-commit)
+- [x] Run `test:boundaries` in CI only. It was in pre-push until CI existed;
+      that duplicated a slower, skippable copy of the same check, and two
+      concurrent pushes raced on the canary's temp files and broke a real push.
 - [x] Run `test:boundaries` in CI — pre-push is bypassable with `--no-verify`
 - [x] Classify `src/proxy.ts` via `boundaries/files`
 - [ ] Add path-casing check to CI
