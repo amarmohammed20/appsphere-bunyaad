@@ -36,14 +36,14 @@ permissions:
   contents: read
 
 jobs:
-  # Do not rename. The required status check is "verify / Verify", built from
+  # Do not rename. The required status check is "pr-checks / Verify", built from
   # this job id and the called job's name.
-  verify:
+  pr-checks:
     if: github.event.pull_request.draft == false
     uses: amarmohammed20/appsphere-bunyaad/.github/workflows/pr-checks-reusable.yml@v1
 ```
 
-Then in the repo's settings, add **`verify / Verify`** as a required status
+Then in the repo's settings, add **`pr-checks / Verify`** as a required status
 check on `main` — that exact string, including the slash. GitHub builds it from
 the caller's job id and the called job's name, and branch protection matches it
 literally. Typing `Verify` creates a check that never reports, which blocks

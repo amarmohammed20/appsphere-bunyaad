@@ -24,7 +24,7 @@ permissions:
 jobs:
   verify:
     # Branch protection matches on "<caller job id> / <this name>", so callers
-    # must keep their job id as `verify`. Listing the steps here would mean
+    # must keep their job id as `pr-checks`. Listing the steps here would mean
     # renaming it every time one is added, breaking every repo at once.
     name: Verify
     runs-on: ubuntu-latest

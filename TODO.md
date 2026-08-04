@@ -87,7 +87,7 @@ Source: App Build Guard Rails.
 - [x] Convert workflows to reusable (`workflow_call`) for client repos
 - [x] Document how client repos reference them — docs/reusable-workflows.md
 - [ ] Tag `v1` once this merges: `git tag -f v1 && git push origin v1 --force`
-- [ ] Make `verify / Verify` a required status check on `main` — that exact
+- [ ] Make `pr-checks / Verify` a required status check on `main` — that exact
       string. GitHub builds it from the caller job id and the called job name;
       typing `Verify` creates a check that never reports and blocks every PR.
 - [ ] Protect `refs/tags/v1` against force-push, and cut releases as immutable

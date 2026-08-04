@@ -23,8 +23,10 @@ permissions:
   contents: read
 
 jobs:
-  # Job id must stay `verify`: branch protection matches "verify / Verify".
-  verify:
+  # Frozen: branch protection in every repo matches "pr-checks / Verify"
+  # literally. Named for the role, not for this repo or the steps inside —
+  # both of those can change, and the string cannot.
+  pr-checks:
     # Drafts are still being written; running the full suite on every push is noise.
     if: github.event.pull_request.draft == false
     uses: ./.github/workflows/pr-checks-reusable.yml
