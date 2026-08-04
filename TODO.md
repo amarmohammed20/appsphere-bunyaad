@@ -5,14 +5,15 @@ Source: App Build Guard Rails.
 
 ## 1. GitHub repo settings
 
-- [ ] Enable branch protection on `main`
-- [ ] Require a pull request before merging
-- [ ] Require at least 1 approving review
-- [ ] Dismiss stale reviews when new commits are pushed
-- [ ] Require status checks to pass before merging
-- [ ] Require branches to be up to date before merging
-- [ ] Block direct pushes to `main`
-- [ ] Disallow bypassing branch protection settings
+- [x] Enable branch protection on `main` — ruleset `protect-main`, active
+- [x] Require a pull request before merging
+- [x] Require at least 1 approving review
+- [x] Dismiss stale reviews when new commits are pushed
+- [x] Require status checks to pass before merging — `pr-checks / Verify`
+- [x] Require branches to be up to date before merging
+- [x] Block direct pushes to `main`
+- [x] Disallow bypassing — bypass list is empty, admins included
+- [ ] Prove it: open a PR with broken code, confirm the merge button is greyed
 - [ ] Enable auto-delete head branches
 - [ ] Enable "Template repository" so new projects use "Use this template"
 
@@ -359,6 +360,32 @@ if adding a folder starts to feel heavy.
 - [ ] Set up Tailwind v4 theme tokens in `globals.css`
 - [ ] Add dark mode support
 - [ ] Add fonts setup
+- [ ] Document which components are shared vs feature-owned
+
+## 20a. SEO
+
+- [ ] Add metadata pattern per route (title, description, canonical)
+- [ ] Add Open Graph and Twitter card defaults
+- [ ] Add `sitemap.ts` and `robots.ts`
+- [ ] Add JSON-LD structured data helper
+- [ ] Add per-page metadata to the reference feature
+- [ ] Document SEO rules for marketing vs app surfaces
+
+## 20b. Knowledge base and content
+
+- [ ] Decide content source (MDX in repo vs Supabase vs CMS)
+- [ ] Add folder structure for articles and categories
+- [ ] Add a worked example article
+- [ ] Add search over content
+- [ ] Add SEO metadata generated per article
+
+## 20c. Internationalisation
+
+- [ ] Decide whether i18n ships by default or per project
+- [ ] Choose the library (next-intl vs alternatives)
+- [ ] Add locale routing pattern
+- [ ] Add translation file structure and naming
+- [ ] Document the rule: no hardcoded user-facing strings
 
 ## 21. Data layer
 
