@@ -49,12 +49,29 @@ const CASES = [
     code: `import { createClient } from '@/lib/supabase/server';\nexport const f = createClient;\n`,
   },
   {
+    name: 'lib launders Supabase to components',
+    rule: 'boundaries/dependencies',
+    path: 'src/lib/__canary.ts',
+    code: `import { createClient } from '@/lib/supabase/server';\nexport const g = createClient;\n`,
+  },
+  {
+    name: 'invented folder inside a feature falls to the catch-all',
+    rule: 'boundaries/dependencies',
+    path: 'src/features/contact/__canaryhelpers/__canary.ts',
+    code: `import { createClient } from '@/lib/supabase/server';\nexport const h = createClient;\n`,
+  },
+  {
     name: 'unclassified folder is rejected',
     rule: 'boundaries/no-unknown-files',
     path: 'src/__canaryjobs/__canary.ts',
-    code: `export const g = 1;\n`,
+    code: `export const i = 1;\n`,
   },
 ];
+
+// The cases above prove bad imports fail. This proves good ones still pass —
+// a broken `captured` template would deny every same-feature import and the
+// checks above would stay green.
+const KNOWN_GOOD = 'src/features/contact/components/ContactForm.tsx';
 
 function writeCases() {
   for (const { path, code } of CASES) {
@@ -66,6 +83,7 @@ function writeCases() {
 function removeCases() {
   for (const { path } of CASES) rmSync(path, { force: true });
   rmSync('src/features/__canary', { recursive: true, force: true });
+  rmSync('src/features/contact/__canaryhelpers', { recursive: true, force: true });
   rmSync('src/__canaryjobs', { recursive: true, force: true });
 }
 
@@ -73,7 +91,7 @@ let results;
 
 try {
   writeCases();
-  results = await new ESLint().lintFiles(CASES.map((testCase) => testCase.path));
+  results = await new ESLint().lintFiles([...CASES.map(({ path }) => path), KNOWN_GOOD]);
 } finally {
   removeCases();
 }
@@ -89,12 +107,20 @@ const failures = CASES.map(({ name, rule, path }) => {
     : `${name} — expected ${rule}, got ${fired.join(', ') || 'nothing'}`;
 }).filter(Boolean);
 
+const falsePositives = (rulesByPath.get(resolve(KNOWN_GOOD)) ?? []).filter((rule) =>
+  rule.startsWith('boundaries/'),
+);
+
+if (falsePositives.length > 0) {
+  failures.push(`${KNOWN_GOOD} is legal but was rejected by ${falsePositives.join(', ')}`);
+}
+
 if (failures.length > 0) {
-  console.error('Boundary rules are not being enforced:\n');
+  console.error('Boundary rules are not behaving correctly:\n');
   for (const failure of failures) console.error(`  ${failure}`);
   console.error('\nThe config may pass lint while doing nothing. Check that element');
   console.error('patterns still match the folders they name.');
   process.exit(1);
 }
 
-console.warn(`All ${CASES.length} boundary rules fire correctly.`);
+console.warn(`All ${CASES.length} boundary rules fire, and legal imports still pass.`);

@@ -91,7 +91,9 @@ export const boundariesConfig = {
     // Without these, a file matching nothing is not checked at all — an agent
     // that invents a folder escapes every policy below, silently.
     'boundaries/no-unknown-files': 'error',
-    'boundaries/no-unknown-dependencies': 'error',
+    // `require: element` because the default accepts a target that is unknown
+    // to the folder taxonomy as long as some file rule names it.
+    'boundaries/no-unknown-dependencies': ['error', { require: 'element' }],
 
     'boundaries/dependencies': [
       'error',
@@ -121,7 +123,12 @@ export const boundariesConfig = {
           allow(PURE_FEATURE_CODE, ['lib', 'shared-types']),
 
           allow(['shared-component', 'shared-ui', 'shared-hook'], SHARED),
-          allow(['lib', SUPABASE], ['lib', SUPABASE, 'shared-types']),
+
+          // `lib` deliberately cannot reach `lib-supabase`. The plugin checks
+          // direct imports only, so a lib helper importing Supabase would
+          // launder it to any component that imports the helper.
+          allow('lib', ['lib', 'shared-types']),
+          allow(SUPABASE, [SUPABASE, 'lib', 'shared-types']),
 
           // Only server/ opens a database connection, so actions and HTTP
           // handlers must delegate and one write cannot be written twice.

@@ -1,17 +1,12 @@
-import { NextResponse, type NextRequest } from 'next/server';
+import { type NextRequest } from 'next/server';
 
-import { isSupabaseConfigured } from '@/lib/env';
-import { updateSession } from '@/lib/supabase/middleware';
+import { updateSession } from '@/lib/supabase/proxy';
 
-// Server Components cannot write cookies, so without this the refreshed
-// Supabase token is never persisted and users are signed out mid-session.
+// Runs before every matched request — the one place for concerns that cut
+// across routes: session refresh, redirects, locale, security headers.
+// Each concern lives in the module that owns it and is called from here.
 // Named proxy, not middleware: Next 16 renamed the convention.
 export function proxy(request: NextRequest) {
-  // No Supabase project yet — nothing to refresh.
-  if (!isSupabaseConfigured) {
-    return NextResponse.next();
-  }
-
   return updateSession(request);
 }
 

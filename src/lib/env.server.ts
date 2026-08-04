@@ -8,8 +8,10 @@ const schema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(), // bypasses RLS
 });
 
+// A blank line in .env arrives as "", which should mean "not set" rather than
+// failing min(1). Copying .env.example verbatim must not crash.
 const result = schema.safeParse({
-  SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
+  SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY || undefined,
 });
 
 if (!result.success) {

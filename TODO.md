@@ -54,7 +54,7 @@ Source: App Build Guard Rails.
 - [ ] Create `supabase/migrations/` folder
 - [x] Add `lib/supabase/client.ts`
 - [x] Add `lib/supabase/server.ts`
-- [x] Add `lib/supabase/middleware.ts`
+- [x] Add `lib/supabase/proxy.ts`
 - [x] Add `proxy.ts` for session refresh (Next 16 renamed middleware to proxy)
 - [ ] Add `src/@types/database.types.ts` placeholder
 - [ ] Add script to generate Supabase types
@@ -143,10 +143,24 @@ Decided: **feature-first**. Reasoning in
 - [ ] Document naming conventions (kebab-case dirs, PascalCase components)
 - [x] Close fail-open holes: no-unknown-files, no-unknown-dependencies, external SDK
 - [x] Add `test:boundaries` canary proving the rules actually fire
-- [ ] Run `test:boundaries` in CI and pre-push (22s, too slow for pre-commit)
+- [x] Run `test:boundaries` in pre-push (22s, too slow for pre-commit)
+- [ ] Run `test:boundaries` in CI — pre-push is bypassable with `--no-verify`
 - [x] Classify `src/proxy.ts` via `boundaries/files`
 - [ ] Add path-casing check to CI
 - [ ] Rewrite guard rails doc Section 9 to match
+
+- [x] Warn loudly when Supabase is unconfigured in production — silent session
+      refresh failure looks like users being signed out at random
+- [x] Require a reason on every `eslint-disable`, so silencing a rule is
+      visible in review instead of accumulating
+- [ ] Move to the scoped `@boundaries/eslint-plugin`. Not yet: on 2026-08-04
+      both names publish 7.1.0 two seconds apart and the old name carries no
+      `deprecated` field, so the rename fixes nothing today. Do it when the
+      versions diverge — one import line, no config change.
+
+Declined: consolidating the boundaries taxonomy (16 types → ~9). Every type
+names a real folder, so merging only makes the error messages vaguer. Revisit
+if adding a folder starts to feel heavy.
 
 ## 10. BugBot
 
@@ -470,9 +484,10 @@ double-reporting.
       empty catch blocks, hardcoded secrets, SQL injection in AI-written code).
       Only ~3.5k downloads/month, so too immature for a template every client
       repo inherits. Recheck adoption later.
-- [ ] `@eslint-community/eslint-comments` — `no-restricted-disable` stops a rule
-      being silenced with a disable comment rather than fixed. Targeted, but a
-      new dependency; wait until we see it actually happen.
+- [x] `@eslint-community/eslint-comments` — adopted for `require-description`
+      and `no-unlimited-disable`. `no-restricted-disable` is still unused: it
+      pins specific rules as unsilenceable, which needs real evidence of which
+      rules get silenced first.
 - [ ] `eslint-plugin-no-secrets` — overlaps with the CI secret scanner already
       planned in section 13.
 - [ ] `eslint-plugin-security`, `SonarJS` — evaluate against real code.

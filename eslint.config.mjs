@@ -1,3 +1,4 @@
+import comments from '@eslint-community/eslint-plugin-eslint-comments';
 import { defineConfig, globalIgnores } from 'eslint/config';
 import nextVitals from 'eslint-config-next/core-web-vitals';
 import nextTs from 'eslint-config-next/typescript';
@@ -15,7 +16,17 @@ const eslintConfig = defineConfig([
     // Flags disable comments that no longer suppress anything.
     linterOptions: { reportUnusedDisableDirectives: 'error' },
 
+    plugins: { '@eslint-community/eslint-comments': comments },
+
     rules: {
+      // Silencing a rule is allowed, but it has to be argued for in the file.
+      // Otherwise disables accumulate and every rule below decays to advice.
+      '@eslint-community/eslint-comments/require-description': 'error',
+      // A bare `/* eslint-disable */` turns off every rule for a whole file.
+      '@eslint-community/eslint-comments/no-unlimited-disable': 'error',
+      '@eslint-community/eslint-comments/no-aggregating-enable': 'error',
+      '@eslint-community/eslint-comments/no-duplicate-disable': 'error',
+
       // Type safety
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/no-non-null-assertion': 'error',
