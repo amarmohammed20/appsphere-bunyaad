@@ -68,16 +68,48 @@ Source: App Build Guard Rails.
 
 ## 6. GitHub Actions CI
 
-- [ ] Add `.github/workflows/ci.yml`
-- [ ] CI job: lint
-- [ ] CI job: type-check
-- [ ] CI job: build
-- [ ] Use `pnpm install --frozen-lockfile` in CI
-- [ ] Cache pnpm store in CI
-- [ ] Convert workflows to reusable (`workflow_call`) for client repos
-- [ ] Tag reusable workflows with `v1` for consumers
-- [ ] Document how client repos reference the reusable workflows
-- [ ] Add PR DB migrations pipeline
+- [x] Add `.github/workflows/pr-checks.yml` — calls the reusable workflow, dogfooding it
+- [x] CI job: lint
+- [x] CI job: type-check
+- [x] CI job: build
+- [x] CI job: format:check
+- [x] CI job: test:boundaries
+- [x] CI job: secret scan on the diff, before install so it fails fast
+- [x] CI job: reject a branch that has not merged its base
+- [x] Use `pnpm install --frozen-lockfile` in CI
+- [x] Cache pnpm store in CI
+- [x] Pin every action to a commit SHA, not a tag
+- [x] CI job: fail if any action is referenced by tag instead of commit
+      (`check:actions`). Appsphere's version treats `@v4` as pinned and only
+      warns, which is why its own workflows are still unpinned.
+- [ ] Port the rest of appsphere's security gate: lockfile integrity,
+      supply-chain settings intact, `pnpm audit`, Semgrep, Trivy
+- [x] Convert workflows to reusable (`workflow_call`) for client repos
+- [x] Document how client repos reference them — docs/reusable-workflows.md
+- [ ] Tag `v1` once this merges: `git tag -f v1 && git push origin v1 --force`
+- [ ] Make `verify / Verify` a required status check on `main` — that exact
+      string. GitHub builds it from the caller job id and the called job name;
+      typing `Verify` creates a check that never reports and blocks every PR.
+- [ ] Protect `refs/tags/v1` against force-push, and cut releases as immutable
+      `v1.x` tags. Whoever can move `v1` runs code in every consuming repo.
+- [ ] Add `actions/dependency-review-action` — free on public repos, fails a PR
+      that adds a known-vulnerable or known-malicious dependency
+- [ ] Add `lockfile-lint` — assert every lockfile entry resolves to
+      registry.npmjs.org over https. `--frozen-lockfile` checks the lockfile
+      matches package.json, not that the URLs in it are legitimate
+- [ ] Add `actionlint` — nothing currently validates the workflows themselves;
+      it would have caught the merge-commit and context bugs mechanically
+- [ ] Add Vitest and one smoke test, then a `pnpm test` step with no
+      `--if-present`. Omitting it silently means a repo can add tests that
+      never run, and the design says this file is not edited per-repo
+- [ ] Build-time env validation, so `next build` in CI proves the app cannot be
+      deployed with missing Supabase config
+- [ ] Prove it end to end: open a throwaway repo that calls `@v1` and watch it run
+- [ ] Add PR DB migrations pipeline — apply migrations against a shadow DB so
+      a broken one fails before it reaches an environment
+- [ ] CI check: fail a migration that creates a table without enabling RLS.
+      Every client repo inherits this template, and a public table is the
+      single most costly Supabase mistake
 - [ ] Add migration file naming/format check
 - [ ] Add check for unpushed migration candidates
 - [ ] Add PR policy workflow (title, labels, size)
@@ -143,8 +175,10 @@ Decided: **feature-first**. Reasoning in
 - [ ] Document naming conventions (kebab-case dirs, PascalCase components)
 - [x] Close fail-open holes: no-unknown-files, no-unknown-dependencies, external SDK
 - [x] Add `test:boundaries` canary proving the rules actually fire
-- [x] Run `test:boundaries` in pre-push (22s, too slow for pre-commit)
-- [ ] Run `test:boundaries` in CI — pre-push is bypassable with `--no-verify`
+- [x] Run `test:boundaries` in CI only. It was in pre-push until CI existed;
+      that duplicated a slower, skippable copy of the same check, and two
+      concurrent pushes raced on the canary's temp files and broke a real push.
+- [x] Run `test:boundaries` in CI — pre-push is bypassable with `--no-verify`
 - [x] Classify `src/proxy.ts` via `boundaries/files`
 - [ ] Add path-casing check to CI
 - [ ] Rewrite guard rails doc Section 9 to match
