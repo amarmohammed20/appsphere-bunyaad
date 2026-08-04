@@ -8,7 +8,8 @@ on:
     # event, marking a draft ready never re-runs it — so a required check
     # would sit unsatisfied forever.
     types: [opened, synchronize, reopened, ready_for_review]
-    branches: [main]
+    # Every branch. `branches: [main]` would silently run no checks at all on
+    # pull requests targeting a develop or release branch.
 
 # A new push makes the previous run's answer irrelevant.
 concurrency:
