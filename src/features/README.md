@@ -11,15 +11,29 @@ need one, use this name rather than a synonym.
 
 ```
 features/<domain>/
+├── actions/      'use server' mutations — the only server code a component may import
 ├── api/          HTTP handlers — only when an external caller needs a real endpoint
 ├── components/   UI for this domain only
-├── server/       queries.ts (reads), actions.ts ('use server'), plain server functions
+├── server/       queries and plain functions — never imported by client code
 ├── schemas/      Zod
 ├── data/         constants.ts, labels.ts — compile-time literals only
 ├── utils/        pure functions for this domain — no IO, no React
 ├── hooks/        client hooks used only by this domain
 └── types.ts
 ```
+
+`actions/` and `server/` are separate folders on purpose. A component may
+import an action; it may never import a query. Keeping them apart makes that
+difference something lint can check rather than something people remember.
+
+## These rules are enforced
+
+`eslint-plugin-boundaries` runs on every lint, configured deny-by-default in
+[eslint.boundaries.mjs](../../eslint.boundaries.mjs). An import is illegal
+unless a policy allows it, so breaking one of the rules below fails the build
+rather than passing review.
+
+Verified by writing deliberate violations and confirming each was caught.
 
 ## No barrel files
 
@@ -83,7 +97,7 @@ more than one place.
 | A form component               | `components/`                                          |
 | Reading from the database      | `server/queries.ts`                                    |
 | Writing to the database        | a plain function in `server/`                          |
-| A mutation a component calls   | `server/actions.ts`                                    |
+| A mutation a component calls   | `actions/`                                             |
 | Validation                     | `schemas/`                                             |
 | Button text, headings, options | `data/labels.ts`                                       |
 | Magic numbers, status lists    | `data/constants.ts`                                    |
@@ -107,10 +121,21 @@ There is no top-level `helpers/` or `utils/`. One home per concept.
 | `types/`             | Generated database types and types shared across features                                      |
 
 **Shared domain code.** A schema, enum or type that two features both need goes
-in `types/` if it is only types, or `lib/` if it is a pure function. If it has
-real domain behaviour, it belongs to one feature and the other imports it
-directly — that is the one place features may reference each other, and it is a
-signal the boundary may be wrong.
+in `types/` if it is only types, or `lib/` if it is a pure function.
+
+If it has real domain behaviour, first ask whether the two features are drawn
+wrong — that is usually what shared business logic means. If they genuinely are
+separate, the sanctioned escape is a single deliberate import with the rule
+suppressed and a reason given:
+
+```ts
+// eslint-disable-next-line boundaries/dependencies -- quotes needs the invoice
+// total calculation; extracting it would split one rule across two features.
+import { calculateTotal } from '@/features/invoicing/utils/calculateTotal';
+```
+
+There is no policy allowing feature-to-feature imports, and there will not be
+one. Every crossing should be visible in a diff with a justification attached.
 
 **Page-level UI that is not a domain** — a marketing hero, a footer — goes in
 `components/shared/`. Do not invent a feature for it.

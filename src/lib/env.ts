@@ -1,37 +1,43 @@
 import { z } from 'zod';
 
-const clientSchema = z.object({
+const schema = z.object({
   NEXT_PUBLIC_SUPABASE_URL: z.url(),
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
 });
 
-const raw = {
-  NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+// Read as full literals so Next can inline them — `process.env[key]` would not.
+// A blank line in .env arrives as "", which should mean "not set".
+const values = {
+  NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
 };
 
-function parseClientEnv() {
-  // Lets CI and Docker build an image without production secrets. The app
-  // still fails at runtime if the values are genuinely missing.
-  if (process.env.SKIP_ENV_VALIDATION === 'true') {
-    return {
-      NEXT_PUBLIC_SUPABASE_URL: raw.NEXT_PUBLIC_SUPABASE_URL ?? '',
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: raw.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '',
-    };
+/**
+ * False on a fresh clone. Anything that opens a database connection must check
+ * this first — `lib/supabase/*` throws if the URL and key are empty.
+ *
+ * Note these are inlined at build time, so a container built without env and
+ * given env at runtime will read false in the browser bundle regardless.
+ */
+export const isSupabaseConfigured = Object.values(values).some(Boolean);
+
+/** Call before opening a connection, so the error names the cause. */
+export function assertSupabaseConfigured() {
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase is not configured. Copy .env.example to .env.local and fill it in.');
   }
-
-  const parsed = clientSchema.safeParse(raw);
-
-  if (!parsed.success) {
-    const missing = Object.keys(z.flattenError(parsed.error).fieldErrors).join(', ');
-    throw new Error(`Missing or invalid environment variables: ${missing}. See .env.example.`);
-  }
-
-  return parsed.data;
 }
 
-/**
- * Values safe to expose to the browser. Read as full literals so Next can
- * inline them at build time — `process.env[key]` would not work.
- */
-export const clientEnv = parseClientEnv();
+function validate() {
+  const result = schema.safeParse(values);
+
+  if (!result.success) {
+    const invalid = Object.keys(z.flattenError(result.error).fieldErrors).join(', ');
+    throw new Error(`Invalid environment variables: ${invalid}. See .env.example.`);
+  }
+
+  return result.data;
+}
+
+// Half-configured is a mistake worth failing on. Not configured at all is not.
+export const clientEnv = isSupabaseConfigured ? validate() : values;

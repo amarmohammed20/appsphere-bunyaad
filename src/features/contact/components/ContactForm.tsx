@@ -2,8 +2,8 @@
 
 import { useState, useTransition } from 'react';
 
+import { submitEnquiry } from '../actions/submitEnquiry';
 import { contactLabels } from '../data/labels';
-import { submitEnquiry } from '../server/actions';
 import { type SubmitEnquiryResult } from '../types';
 
 function FieldError({ messages }: { messages: string[] | undefined }) {

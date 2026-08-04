@@ -4,27 +4,19 @@ import { z } from 'zod';
 
 // Never prefix these NEXT_PUBLIC_ — that inlines them into the browser bundle.
 // Every field is optional today, so nothing is actually validated yet.
-const serverSchema = z.object({
+const schema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(), // bypasses RLS
 });
 
-const raw = {
-  SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
-};
+// A blank line in .env arrives as "", which should mean "not set" rather than
+// failing min(1). Copying .env.example verbatim must not crash.
+const result = schema.safeParse({
+  SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY || undefined,
+});
 
-function parseServerEnv() {
-  if (process.env.SKIP_ENV_VALIDATION === 'true') {
-    return raw;
-  }
-
-  const parsed = serverSchema.safeParse(raw);
-
-  if (!parsed.success) {
-    const missing = Object.keys(z.flattenError(parsed.error).fieldErrors).join(', ');
-    throw new Error(`Missing or invalid server environment variables: ${missing}.`);
-  }
-
-  return parsed.data;
+if (!result.success) {
+  const invalid = Object.keys(z.flattenError(result.error).fieldErrors).join(', ');
+  throw new Error(`Invalid server environment variables: ${invalid}.`);
 }
 
-export const serverEnv = parseServerEnv();
+export const serverEnv = result.data;

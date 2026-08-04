@@ -1,0 +1,21 @@
+#!/bin/sh
+
+if [ -t 1 ] && [ -z "$NO_COLOR" ]; then
+  GREEN=$(printf '\033[32m')
+  RED=$(printf '\033[31m')
+  DIM=$(printf '\033[2m')
+  RESET=$(printf '\033[0m')
+else
+  GREEN='' RED='' DIM='' RESET=''
+fi
+
+echo "${DIM}Checking the architecture rules still fire...${RESET}"
+
+pnpm test:boundaries || {
+  echo ""
+  echo "${RED}✗ The boundary rules are not enforcing anything.${RESET}"
+  echo "  Lint may pass while the architecture is unguarded. Fix before pushing."
+  exit 1
+}
+
+echo "${GREEN}✓ Architecture rules verified${RESET}"

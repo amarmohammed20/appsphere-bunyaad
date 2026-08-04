@@ -5,9 +5,8 @@ import { z } from 'zod';
 
 import { contactLabels } from '../data/labels';
 import { contactEnquirySchema } from '../schemas/contact';
+import { createEnquiry } from '../server/createEnquiry';
 import { type SubmitEnquiryResult } from '../types';
-
-import { createEnquiry } from './createEnquiry';
 
 /**
  * Server actions are public HTTP endpoints — anyone can invoke them. Validate

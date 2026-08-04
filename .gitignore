@@ -32,6 +32,11 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
+
+# deliberate violations written by scripts/boundaries-canary.mjs, normally
+# deleted before it exits — this catches the run that was interrupted
+**/__canary*
 
 # vercel
 .vercel

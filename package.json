@@ -9,6 +9,7 @@
     "start": "next start",
     "lint": "eslint",
     "lint:fix": "eslint --fix",
+    "test:boundaries": "node scripts/boundaries-canary.mjs",
     "type-check": "tsc --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -32,6 +33,7 @@
     "zod": "4.4.3"
   },
   "devDependencies": {
+    "@eslint-community/eslint-plugin-eslint-comments": "4.7.2",
     "@tailwindcss/postcss": "4.3.3",
     "@types/node": "20.19.43",
     "@types/react": "19.2.17",
@@ -39,6 +41,7 @@
     "eslint": "9.39.5",
     "eslint-config-next": "16.2.12",
     "eslint-config-prettier": "10.1.8",
+    "eslint-plugin-boundaries": "7.1.0",
     "husky": "9.1.7",
     "lint-staged": "17.2.0",
     "prettier": "3.9.6",

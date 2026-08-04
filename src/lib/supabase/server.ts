@@ -1,10 +1,12 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
-import { clientEnv } from '@/lib/env';
+import { clientEnv, assertSupabaseConfigured } from '@/lib/env';
 
 /** Supabase client for Server Components, Server Actions and Route Handlers. */
 export async function createClient() {
+  assertSupabaseConfigured();
+
   const cookieStore = await cookies();
 
   return createServerClient(
@@ -22,7 +24,7 @@ export async function createClient() {
             });
           } catch {
             // Called from a Server Component, which cannot set cookies.
-            // Safe to ignore when middleware is refreshing the session.
+            // Safe to ignore when proxy.ts is refreshing the session.
           }
         },
       },
