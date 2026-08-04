@@ -15,7 +15,14 @@ concurrency:
   group: pr-checks-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
+# The real ceiling on what the called workflow can do. Declared here rather
+# than relied on there, because a called workflow can only reduce the caller's
+# grant — and whoever controls the called file controls what it declares.
+permissions:
+  contents: read
+
 jobs:
+  # Job id must stay `verify`: branch protection matches "verify / Verify".
   verify:
     # Drafts are still being written; running the full suite on every push is noise.
     if: github.event.pull_request.draft == false

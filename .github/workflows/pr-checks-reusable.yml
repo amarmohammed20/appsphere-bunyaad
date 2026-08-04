@@ -14,14 +14,18 @@ on:
         type: boolean
         default: true
 
+# Not a security boundary. A called workflow can only reduce what the caller
+# granted, never raise it, and anyone who can move the v1 tag rewrites this
+# block anyway. The cap that matters is in the caller — see the template in
+# docs/reusable-workflows.md.
 permissions:
   contents: read
 
 jobs:
   verify:
-    # This string is the required status check name in branch protection.
-    # Listing the steps here would mean renaming it every time one is added,
-    # which breaks branch protection in every repo at once.
+    # Branch protection matches on "<caller job id> / <this name>", so callers
+    # must keep their job id as `verify`. Listing the steps here would mean
+    # renaming it every time one is added, breaking every repo at once.
     name: Verify
     runs-on: ubuntu-latest
     steps:
@@ -31,16 +35,18 @@ jobs:
           # need commits older than the pull request.
           fetch-depth: 0
 
-      # A branch that has not merged the base cannot have been tested against
-      # what it will actually merge into, so every check after this is advisory.
+      # Tested against HEAD this would prove nothing: on a pull_request event
+      # HEAD is the merge commit GitHub builds from head and base, so the base
+      # is an ancestor of it by construction. The author's own branch is what
+      # has to contain the base, hence head.sha.
       - name: Base branch is merged in
+        if: github.event_name == 'pull_request'
         env:
-          # Falls back for callers triggered by something other than a pull
-          # request, where there is no base branch on the event.
-          BASE: ${{ github.event.pull_request.base.ref || github.event.repository.default_branch }}
+          BASE: ${{ github.event.pull_request.base.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           git fetch origin "$BASE"
-          if git merge-base --is-ancestor "origin/$BASE" HEAD; then
+          if git merge-base --is-ancestor "origin/$BASE" "$HEAD_SHA"; then
             echo "Branch includes the latest origin/$BASE"
           else
             echo "::error::This branch is behind origin/$BASE. Merge or rebase it in, then push again:"
@@ -53,8 +59,10 @@ jobs:
         run: node scripts/check-action-pinning.mjs
 
       # Before install, so a leaked key fails in seconds rather than minutes.
+      # Guarded on the event as well: outside a pull request there is no base
+      # SHA, and the action would silently switch to scanning all history.
       - name: Scan the diff for secrets
-        if: inputs.secret-scan
+        if: inputs.secret-scan && github.event_name == 'pull_request'
         uses: trufflesecurity/trufflehog@6f3c981e7b77f235fd2702dd74af25fc4b72bf11 # v3.96.0
         with:
           path: ./
