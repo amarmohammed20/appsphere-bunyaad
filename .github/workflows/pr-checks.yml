@@ -1,0 +1,22 @@
+# Bunyaad running its own reusable workflow, and a working copy of what every
+# consuming repo writes. See docs/reusable-workflows.md.
+name: PR Checks
+
+on:
+  pull_request:
+    # ready_for_review matters: the job below skips drafts, and without this
+    # event, marking a draft ready never re-runs it — so a required check
+    # would sit unsatisfied forever.
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+
+# A new push makes the previous run's answer irrelevant.
+concurrency:
+  group: pr-checks-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    # Drafts are still being written; running the full suite on every push is noise.
+    if: github.event.pull_request.draft == false
+    uses: ./.github/workflows/pr-checks-reusable.yml

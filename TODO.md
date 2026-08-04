@@ -68,15 +68,27 @@ Source: App Build Guard Rails.
 
 ## 6. GitHub Actions CI
 
-- [ ] Add `.github/workflows/ci.yml`
-- [ ] CI job: lint
-- [ ] CI job: type-check
-- [ ] CI job: build
-- [ ] Use `pnpm install --frozen-lockfile` in CI
-- [ ] Cache pnpm store in CI
-- [ ] Convert workflows to reusable (`workflow_call`) for client repos
-- [ ] Tag reusable workflows with `v1` for consumers
-- [ ] Document how client repos reference the reusable workflows
+- [x] Add `.github/workflows/pr-checks.yml` — calls the reusable workflow, dogfooding it
+- [x] CI job: lint
+- [x] CI job: type-check
+- [x] CI job: build
+- [x] CI job: format:check
+- [x] CI job: test:boundaries
+- [x] CI job: secret scan on the diff, before install so it fails fast
+- [x] CI job: reject a branch that has not merged its base
+- [x] Use `pnpm install --frozen-lockfile` in CI
+- [x] Cache pnpm store in CI
+- [x] Pin every action to a commit SHA, not a tag
+- [x] CI job: fail if any action is referenced by tag instead of commit
+      (`check:actions`). Appsphere's version treats `@v4` as pinned and only
+      warns, which is why its own workflows are still unpinned.
+- [ ] Port the rest of appsphere's security gate: lockfile integrity,
+      supply-chain settings intact, `pnpm audit`, Semgrep, Trivy
+- [x] Convert workflows to reusable (`workflow_call`) for client repos
+- [x] Document how client repos reference them — docs/reusable-workflows.md
+- [ ] Tag `v1` once this merges: `git tag -f v1 && git push origin v1 --force`
+- [ ] Make "Verify" a required status check on `main`
+- [ ] Prove it end to end: open a throwaway repo that calls `@v1` and watch it run
 - [ ] Add PR DB migrations pipeline
 - [ ] Add migration file naming/format check
 - [ ] Add check for unpushed migration candidates
@@ -144,7 +156,7 @@ Decided: **feature-first**. Reasoning in
 - [x] Close fail-open holes: no-unknown-files, no-unknown-dependencies, external SDK
 - [x] Add `test:boundaries` canary proving the rules actually fire
 - [x] Run `test:boundaries` in pre-push (22s, too slow for pre-commit)
-- [ ] Run `test:boundaries` in CI — pre-push is bypassable with `--no-verify`
+- [x] Run `test:boundaries` in CI — pre-push is bypassable with `--no-verify`
 - [x] Classify `src/proxy.ts` via `boundaries/files`
 - [ ] Add path-casing check to CI
 - [ ] Rewrite guard rails doc Section 9 to match

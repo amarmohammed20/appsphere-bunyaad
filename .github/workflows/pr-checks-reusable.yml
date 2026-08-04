@@ -1,0 +1,93 @@
+# Every repo built from bunyaad calls this file rather than copying it, so a
+# fix here reaches all of them. See docs/reusable-workflows.md.
+name: PR Checks (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: Node version to run the checks on.
+        type: string
+        default: '22'
+      secret-scan:
+        description: Scan the pull request diff for committed secrets.
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    # This string is the required status check name in branch protection.
+    # Listing the steps here would mean renaming it every time one is added,
+    # which breaks branch protection in every repo at once.
+    name: Verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Full history: the secret scan and the base-branch check below both
+          # need commits older than the pull request.
+          fetch-depth: 0
+
+      # A branch that has not merged the base cannot have been tested against
+      # what it will actually merge into, so every check after this is advisory.
+      - name: Base branch is merged in
+        env:
+          # Falls back for callers triggered by something other than a pull
+          # request, where there is no base branch on the event.
+          BASE: ${{ github.event.pull_request.base.ref || github.event.repository.default_branch }}
+        run: |
+          git fetch origin "$BASE"
+          if git merge-base --is-ancestor "origin/$BASE" HEAD; then
+            echo "Branch includes the latest origin/$BASE"
+          else
+            echo "::error::This branch is behind origin/$BASE. Merge or rebase it in, then push again:"
+            echo "  git fetch origin && git merge origin/$BASE"
+            exit 1
+          fi
+
+      # Needs no dependencies, so it runs before install with the secret scan.
+      - name: Actions are pinned to a commit
+        run: node scripts/check-action-pinning.mjs
+
+      # Before install, so a leaked key fails in seconds rather than minutes.
+      - name: Scan the diff for secrets
+        if: inputs.secret-scan
+        uses: trufflesecurity/trufflehog@6f3c981e7b77f235fd2702dd74af25fc4b72bf11 # v3.96.0
+        with:
+          path: ./
+          base: ${{ github.event.pull_request.base.sha }}
+          head: HEAD
+
+      # Reads the pinned version from packageManager in package.json.
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: pnpm
+
+      # --frozen-lockfile: fail rather than silently resolve a different tree
+      # than the one that was reviewed.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Cheapest first, so the common failures report soonest.
+      - name: Formatting
+        run: pnpm run format:check
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Types
+        run: pnpm run type-check
+
+      # Proves the architecture rules still fire. Without this, a boundaries
+      # config that has stopped matching any folder passes lint in silence.
+      - name: Architecture rules
+        run: pnpm run test:boundaries
+
+      - name: Build
+        run: pnpm run build
