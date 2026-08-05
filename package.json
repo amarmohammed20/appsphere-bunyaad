@@ -14,7 +14,19 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prepare": "husky",
-    "check:actions": "node scripts/check-action-pinning.mjs"
+    "check:actions": "node scripts/check-action-pinning.mjs",
+    "db:start": "supabase start",
+    "db:stop": "supabase stop",
+    "db:reset": "supabase db reset",
+    "db:diff": "supabase db diff -f",
+    "db:push": "supabase db push",
+    "db:push:dry": "supabase db push --dry-run",
+    "db:list": "node scripts/db/list-db-migrations.mjs",
+    "db:types": "supabase gen types typescript --local --schema public > src/types/database.types.ts",
+    "check:db-migrations": "node scripts/db/check-db-migrations.mjs",
+    "check:db-push-candidate": "node scripts/db/check-db-push-candidate.mjs",
+    "check:rls": "node scripts/db/check-rls.mjs",
+    "verify:db-reset": "node scripts/db/verify-reset-db.mjs"
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx,mjs,cjs}": [
@@ -47,6 +59,7 @@
     "lint-staged": "17.2.0",
     "prettier": "3.9.6",
     "prettier-plugin-tailwindcss": "0.8.1",
+    "supabase": "2.111.0",
     "tailwindcss": "4.3.3",
     "typescript": "5.9.3"
   },

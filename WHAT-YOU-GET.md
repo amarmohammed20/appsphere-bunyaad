@@ -69,7 +69,7 @@ The starting point for every new client project. Item-level detail in
 ## Working with AI
 
 - **Workflow guide** — how to take a feature from prompt to merged pull request.
-- **Context files** — one source of truth, read by Claude, Cursor and Codex.
+- **Context file** — the rules Claude reads before writing code.
 - **Write-time hooks** — an agent is blocked as it writes, not corrected later.
 - **Fast linting** — checks quick enough to run after every file an agent writes.
 - **Skills** — scaffolding and review tasks defined once, reused everywhere.

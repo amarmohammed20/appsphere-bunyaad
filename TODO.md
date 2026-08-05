@@ -51,15 +51,23 @@ Source: App Build Guard Rails.
 
 ## 5. Environments and Supabase
 
-- [ ] Run `supabase init` and commit `config.toml`
-- [ ] Create `supabase/migrations/` folder
+- [x] Run `supabase init` and commit `config.toml` (analytics off — flaky on
+      Windows Docker; `schema_paths` on for declarative schemas)
+- [x] Create `supabase/migrations/` — first migration generated from
+      `supabase/schemas/users.sql` via `pnpm db:diff`, never hand-written
 - [x] Add `lib/supabase/client.ts`
 - [x] Add `lib/supabase/server.ts`
 - [x] Add `lib/supabase/proxy.ts`
 - [x] Add `proxy.ts` for session refresh (Next 16 renamed middleware to proxy)
-- [ ] Add `src/@types/database.types.ts` placeholder
-- [ ] Add script to generate Supabase types
-- [ ] Add DB scripts: start, stop, reset, diff, push, pull
+- [x] Generate `src/types/database.types.ts` from the real schema (`pnpm db:types`)
+- [x] Add script to generate Supabase types
+- [x] Add DB scripts: start, stop, reset, diff, push, types
+- [x] Add `features/users` CRUD as the DB-backed reference — create, read,
+      role update, delete all verified in the browser against local Postgres
+- [ ] Replace demo-public RLS policies with authenticated ones when auth lands
+- [x] Deleted `features/contact` — `users` is the single reference (full CRUD
+      plus an api/ handler; contact also queried a table no migration created).
+      Canary, features README and CLAUDE.md repointed.
 - [x] Add `.env.example` with all required keys
 - [x] Add `lib/env.ts` — validates only when Supabase is configured, so a fresh clone runs
 - [ ] Document three-environment setup (local, staging, production)
@@ -106,11 +114,14 @@ Source: App Build Guard Rails.
 - [ ] Build-time env validation, so `next build` in CI proves the app cannot be
       deployed with missing Supabase config
 - [ ] Prove it end to end: open a throwaway repo that calls `@v1` and watch it run
-- [ ] Add PR DB migrations pipeline — apply migrations against a shadow DB so
-      a broken one fails before it reaches an environment
-- [ ] CI check: fail a migration that creates a table without enabling RLS.
-      Every client repo inherits this template, and a public table is the
-      single most costly Supabase mistake
+- [x] Add PR DB migrations pipeline — ported from itc as a reusable workflow
+      (`db-checks / Verify`): alignment vs the hosted project, full rebuild
+      from migrations + seed in CI, smoke checks, dry-run push, and red until
+      production is actually pushed
+- [x] CI check: fail a migration that creates a table without enabling RLS
+      (`pnpm check:rls`, verified with a deliberately leaky migration)
+- [ ] Add repo secrets SUPABASE_ACCESS_TOKEN + SUPABASE_PROJECT_REF, then
+      prove db-checks end to end on a real PR
 - [ ] Add migration file naming/format check
 - [ ] Add check for unpushed migration candidates
 - [ ] Add PR policy workflow (title, labels, size)
@@ -167,7 +178,8 @@ Decided: **feature-first**. Reasoning in
 - [x] Document the required feature shape in `src/features/README.md`
 - [x] No `helpers/`, no `utils/`, no `data/` at top level — one home per concept
 - [x] Add Zod
-- [x] Add `features/contact/` as the reference implementation
+- [x] Add a reference feature — was `contact/`, replaced by `users/` (full
+      CRUD against a real table) once the database existed
 - [ ] Add route groups `(marketing)` and `(app)` once there are real pages
 - [x] Enforce with `eslint-plugin-boundaries`, deny-by-default
 - [x] Rule: features never import other features
@@ -206,23 +218,22 @@ if adding a folder starts to feel heavy.
 
 ## 11. AI context files
 
-- [ ] Write `AGENTS.md` with stack and versions
-- [ ] `AGENTS.md`: domain and folder map
-- [ ] `AGENTS.md`: naming conventions
-- [ ] `AGENTS.md`: quality gate commands
-- [ ] `AGENTS.md`: do-not-touch areas
-- [ ] `AGENTS.md`: domain-specific rules section
-- [ ] `AGENTS.md`: product knowledge section
-- [ ] Add `CLAUDE.md`
+Decided: **Claude Code only.** One agent file, no cross-tool pointers. Skills,
+subagents and hooks are Claude-specific and have no equivalent elsewhere, so
+supporting a second tool would only ever cover half of this. If another tool is
+adopted, give it a pointer to `CLAUDE.md` rather than a copy.
+
+- [x] Write `CLAUDE.md` with stack and versions
+- [x] `CLAUDE.md`: quality gate commands
+- [x] `CLAUDE.md`: do-not-touch areas
+- [x] `CLAUDE.md`: structure rules, pointing at `src/features/README.md`
+- [ ] `CLAUDE.md`: naming conventions — not written down anywhere yet
+- [ ] `CLAUDE.md`: product knowledge section, per project
 - [ ] Add `.claude/settings.json`
-- [ ] Add `.cursor/rules/`
-- [ ] Add `.agents/skills/` review skills
-- [ ] Decide sync mechanism for skills files across repos
-- [ ] Make one source of truth for agent rules, with thin pointers for each tool
-- [ ] Verify setup works in Claude Code
-- [ ] Verify setup works in Cursor
-- [ ] Verify setup works in Codex
-- [ ] Document which file each tool reads
+- [ ] Decide sync mechanism for `.claude/` across repos
+- [ ] Verify an agent actually follows it — give Claude a task that tempts it
+      into a violation and see whether it self-corrects
+- [ ] `.cursor/BUGBOT.md` if section 10 goes ahead — BugBot is Cursor-based
 
 ## 11a. Claude skills
 
@@ -427,17 +438,26 @@ if adding a folder starts to feel heavy.
 
 ## 23. Authentication
 
-- [ ] Add Supabase Auth setup
-- [ ] Add sign up / sign in / sign out flows
-- [ ] Add password reset flow
-- [ ] Add email confirmation handling
-- [ ] Add OAuth provider example
-- [ ] Add protected route pattern via middleware
-- [ ] Add role/permission checking helper
-- [ ] Add `profiles` table migration
-- [ ] Separate sensitive user data into its own RLS-protected table
-- [ ] Add session handling in server components
-- [ ] Document auth redirect URL config per environment
+Decided: two roles (`admin`/`member`), default member, admins promote via the
+app, no self-change, never demote the last admin. First admin: seeded locally,
+one dashboard flip in production. OAuth/teams/invitations/MFA deliberately out
+until a client project needs them.
+
+- [x] Add Supabase Auth setup
+- [x] Add sign up / sign in / sign out flows
+- [x] Add password reset flow (email lands in Mailpit locally, :54324)
+- [x] Add email link handling — `/auth/confirm` verifies and forwards
+- [ ] Add OAuth provider example — deliberately deferred
+- [x] Add protected route pattern — `requireAdminPage()` redirect guard
+- [x] Add role checking helpers — `requireUser` / `requireRole` in lib/supabase
+- [x] Add `profiles` table — trigger-created from auth.users, real RLS
+      policies, demo policies gone
+- [ ] Separate sensitive user data into its own RLS-protected table — when
+      there is sensitive data to separate
+- [x] Add session handling in server components — `getSessionUser()`
+- [ ] Document auth redirect URL config per environment (needed at deploy)
+- [ ] Test the full flows in the browser after `db:reset` regenerates
+      everything (sign in as both roles, promote, demote, last-admin rule)
 
 ## 24. Error handling
 
@@ -447,7 +467,7 @@ if adding a folder starts to feel heavy.
 - [ ] Add central error classes
 - [ ] Rule: generic errors to client, full detail to Sentry
 - [ ] Add loading and empty state conventions
-- [ ] Document error handling rules in AGENTS.md
+- [ ] Document error handling rules in CLAUDE.md
 
 ## 25. Multi-domain setup
 
@@ -482,7 +502,7 @@ if adding a folder starts to feel heavy.
 - [ ] Role: release engineer to ship the PR
 - [ ] Add slash commands for each role
 - [ ] Document the end-to-end role sequence for a feature
-- [ ] Keep roles in sync with `AGENTS.md` conventions
+- [ ] Keep roles in sync with `CLAUDE.md` conventions
 
 ## 27. Open decisions
 

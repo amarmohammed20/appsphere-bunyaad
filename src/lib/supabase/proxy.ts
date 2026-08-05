@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { clientEnv, isSupabaseConfigured } from '@/lib/env';
+import { type Database } from '@/types/database.types';
 
 // Unconfigured in production is a broken deploy, not a fresh clone. Without
 // this the only symptom is users being signed out at random, with nothing in
@@ -25,7 +26,7 @@ export async function updateSession(request: NextRequest) {
 
   let response = NextResponse.next({ request });
 
-  const supabase = createServerClient(
+  const supabase = createServerClient<Database>(
     clientEnv.NEXT_PUBLIC_SUPABASE_URL,
     clientEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {

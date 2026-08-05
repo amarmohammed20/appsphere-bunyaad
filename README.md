@@ -1,36 +1,66 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Bunyaad
 
-## Getting Started
+The AppSphere boilerplate. Every new client project starts from it.
 
-First, run the development server:
+What it standardises, and what is still planned:
+[WHAT-YOU-GET.md](WHAT-YOU-GET.md).
+
+## Run it
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+It runs without a database. Supabase features stay off until you configure one.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Start a project from it
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. **Use this template** on GitHub, or clone and re-point the remote.
+2. Copy `.env.example` to `.env.local` and fill it in.
+3. Update `name` in `package.json`.
+4. Rewrite this README for the project.
+5. Add a `.github/workflows/pr-checks.yml` calling bunyaad's shared workflow —
+   see [docs/reusable-workflows.md](docs/reusable-workflows.md).
+6. Protect `main` — pull request required, `pr-checks / Verify` required.
+7. Add project-specific rules to `CLAUDE.md`.
 
-## Learn More
+## Commands
 
-To learn more about Next.js, take a look at the following resources:
+| Command                | Does                                     |
+| ---------------------- | ---------------------------------------- |
+| `pnpm dev`             | Development server                       |
+| `pnpm build`           | Production build                         |
+| `pnpm lint`            | ESLint, including the architecture rules |
+| `pnpm type-check`      | TypeScript, no emit                      |
+| `pnpm format`          | Prettier, write                          |
+| `pnpm test:boundaries` | Proves the architecture rules still fire |
+| `pnpm check:actions`   | Proves every GitHub action is pinned     |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+pnpm only — `npm install` and `yarn` are blocked by `preinstall`.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Working in it
 
-## Deploy on Vercel
+Read [CLAUDE.md](CLAUDE.md) first. It is written for AI agents, but the rules
+are the same for people.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Code goes in `src/features/<domain>/`. What belongs where is in
+[src/features/README.md](src/features/README.md), with `contact/` as a worked
+example.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The rules are enforced, not documented. Wrong-place code fails `pnpm lint`.
+
+## Why it is built this way
+
+Most of our code is now AI-written. AI produces code that runs but is often
+poor quality, and conventions in a document get ignored. So the repository
+enforces them mechanically instead.
+
+Reasoning is recorded rather than assumed:
+
+| Document                                                 | Covers                               |
+| -------------------------------------------------------- | ------------------------------------ |
+| [docs/ai-code-quality.md](docs/ai-code-quality.md)       | Why enforcement over convention      |
+| [docs/folder-structure.md](docs/folder-structure.md)     | Why feature-first, with the evidence |
+| [docs/reusable-workflows.md](docs/reusable-workflows.md) | How CI is shared across repos        |
+| [TODO.md](TODO.md)                                       | Everything planned, item by item     |

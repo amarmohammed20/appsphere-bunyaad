@@ -2,7 +2,8 @@
 
 One folder per business domain. Everything that domain needs lives inside it.
 
-`contact/` is the reference implementation — copy its shape.
+`users/` is the reference implementation — a full CRUD against a real table,
+verified end to end. Copy its shape.
 
 ## Shape
 
@@ -40,8 +41,8 @@ Verified by writing deliberate violations and confirming each was caught.
 Import the file you want, directly:
 
 ```ts
-import { ContactForm } from '@/features/contact/components/ContactForm';
-import { listEnquiries } from '@/features/contact/server/queries';
+import { UsersTable } from '@/features/users/components/UsersTable';
+import { listUsers } from '@/features/users/server/queries';
 ```
 
 Not an `index.ts` that re-exports everything. Reasons:
@@ -82,13 +83,13 @@ the error boundary — nothing sensible can be rendered without the data. A
 failed write returns `{ ok: false, error }`, because the form needs to show it
 and stay on screen. Follow the same split in every feature.
 
-**One file per write, named after the verb.** `createEnquiry.ts`,
-`cancelInvoice.ts`. Reads are grouped in `queries.ts` because they share
-shape; writes are not, because each one owns its own rules and gets called from
-more than one place.
+**One file per write, named after the verb.** `createUser.ts`,
+`updateUserRole.ts`, `deleteUser.ts`. Reads are grouped in `queries.ts` because
+they share shape; writes are not, because each one owns its own rules and gets
+called from more than one place.
 
 **Revalidate where data is displayed, not where it was written.** A write on
-`/contact` that only appears on `/admin/enquiries` revalidates the latter.
+one page that only appears on another revalidates the latter.
 
 ## Where things go
 
@@ -143,15 +144,18 @@ one. Every crossing should be visible in a diff with a justification attached.
 ## Wiring
 
 ```ts
-// app/api/contact/route.ts
-export { POST } from '@/features/contact/api/publicEnquiry';
+// app/api/users/route.ts
+export { GET } from '@/features/users/api/listUsers';
 ```
 
 ```tsx
-// app/(marketing)/contact/page.tsx
-import { ContactForm } from '@/features/contact/components/ContactForm';
+// app/users/page.tsx
+import { UsersTable } from '@/features/users/components/UsersTable';
+import { listUsers } from '@/features/users/server/queries';
 
-export default function ContactPage() {
-  return <ContactForm />;
+export default async function UsersPage() {
+  const users = await listUsers();
+
+  return <UsersTable users={users} />;
 }
 ```

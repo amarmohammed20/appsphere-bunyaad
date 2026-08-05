@@ -1,0 +1,36 @@
+export const authLabels = {
+  signInHeading: 'Welcome back',
+  signInLead: 'Sign in to continue.',
+  signUpHeading: 'Create your account',
+  signUpLead: 'A few seconds, no ceremony.',
+  resetHeading: 'Reset your password',
+  resetLead: 'We will email you a reset link.',
+  updatePasswordHeading: 'Choose a new password',
+  updatePasswordLead: 'This replaces your old one everywhere.',
+
+  nameField: 'Full name',
+  emailField: 'Email',
+  passwordField: 'Password',
+
+  signIn: 'Sign in',
+  signingIn: 'Signing in…',
+  signUp: 'Create account',
+  signingUp: 'Creating account…',
+  signOut: 'Sign out',
+  sendReset: 'Send reset link',
+  sendingReset: 'Sending…',
+  updatePassword: 'Update password',
+  updatingPassword: 'Updating…',
+
+  resetSent: 'Check your email for the reset link.',
+  invalidCredentials: 'Wrong email or password.',
+  emailTaken: 'An account with that email already exists.',
+  failure: 'Something went wrong. Please try again.',
+  validationFailure: 'Please check the form and try again.',
+
+  toSignUp: 'No account?',
+  toSignUpLink: 'Create one',
+  toSignIn: 'Already have an account?',
+  toSignInLink: 'Sign in',
+  forgotPassword: 'Forgot password?',
+} as const;

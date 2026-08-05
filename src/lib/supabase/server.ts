@@ -1,7 +1,11 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
+// The SDK types features need, re-exported so features never import the SDK.
+export { type EmailOtpType } from '@supabase/supabase-js';
+
 import { clientEnv, assertSupabaseConfigured } from '@/lib/env';
+import { type Database } from '@/types/database.types';
 
 /** Supabase client for Server Components, Server Actions and Route Handlers. */
 export async function createClient() {
@@ -9,7 +13,7 @@ export async function createClient() {
 
   const cookieStore = await cookies();
 
-  return createServerClient(
+  return createServerClient<Database>(
     clientEnv.NEXT_PUBLIC_SUPABASE_URL,
     clientEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
