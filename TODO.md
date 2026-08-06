@@ -125,6 +125,9 @@ Source: App Build Guard Rails.
       (`pnpm check:rls`, verified with a deliberately leaky migration)
 - [ ] Add repo secrets SUPABASE_ACCESS_TOKEN + SUPABASE_PROJECT_REF, then
       prove db-checks end to end on a real PR
+- [ ] Behavioural test that `authenticated` cannot execute `is_admin()`, in
+      verify-reset-db.mjs. The diff tool dropped that revoke and only a human
+      reading the migration caught it — see docs/supabase-diff-caveats.md
 - [ ] Add migration file naming/format check
 - [ ] Add check for unpushed migration candidates
 - [ ] Add PR policy workflow (title, labels, size)
