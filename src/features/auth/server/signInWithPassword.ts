@@ -6,7 +6,6 @@ import { authLabels } from '../data/labels';
 import { type SignInInput } from '../schemas/credentials';
 import { type AuthResult } from '../types';
 
-/** The only place a password sign-in happens. Sets the session cookies. */
 export async function signInWithPassword(input: SignInInput): Promise<AuthResult> {
   const supabase = await createClient();
 

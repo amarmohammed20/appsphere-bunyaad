@@ -6,11 +6,8 @@ import { authLabels } from '../data/labels';
 import { type SignUpInput } from '../schemas/credentials';
 import { type AuthResult } from '../types';
 
-/**
- * The only place an account is created. The database trigger creates the
- * matching profile row, always as `member` — roles are never chosen at
- * sign-up.
- */
+// The database trigger creates the profile row, always as member — roles
+// are never chosen at sign-up.
 export async function signUpWithPassword(input: SignUpInput): Promise<AuthResult> {
   const supabase = await createClient();
 

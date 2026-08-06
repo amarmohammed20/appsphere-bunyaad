@@ -1,13 +1,12 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
-// The SDK types features need, re-exported so features never import the SDK.
+// Re-exported so features never import the SDK directly (boundaries rule).
 export { type EmailOtpType } from '@supabase/supabase-js';
 
 import { clientEnv, assertSupabaseConfigured } from '@/lib/env';
 import { type Database } from '@/types/database.types';
 
-/** Supabase client for Server Components, Server Actions and Route Handlers. */
 export async function createClient() {
   assertSupabaseConfigured();
 
@@ -27,8 +26,7 @@ export async function createClient() {
               cookieStore.set(name, value, options);
             });
           } catch {
-            // Called from a Server Component, which cannot set cookies.
-            // Safe to ignore when proxy.ts is refreshing the session.
+            // Server Components cannot set cookies; proxy.ts refreshes instead.
           }
         },
       },

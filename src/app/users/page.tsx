@@ -1,8 +1,8 @@
 import { SignOutButton } from '@/features/auth/components/SignOutButton';
 import { UsersTable } from '@/features/users/components/UsersTable';
 import { usersLabels } from '@/features/users/data/labels';
-import { requireAdminPage } from '@/features/users/server/guards';
 import { listUsers } from '@/features/users/server/queries';
+import { requireAdminPage } from '@/features/users/server/requireAdminPage';
 
 export const metadata = { title: 'Team' };
 

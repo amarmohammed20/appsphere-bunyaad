@@ -1,5 +1,3 @@
-// Shared plumbing for the migration checks. Ported from itc.
-
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -56,18 +54,9 @@ export const loadEnvFile = (filePath = envFilePath) => {
 /** Characters that would let an argument break out of a shell command. */
 const SHELL_METACHARACTERS = /[&|;$`<>(){}[\]!*?~\n\r"'\\]/;
 
-/**
- * Run a CLI subprocess.
- *
- * `shell: true` is unavoidable on Windows: `pnpm` is really `pnpm.cmd`, and
- * Node refuses to execute a `.cmd` shim without a shell. A shell means shell
- * metacharacters in an argument could break out of the intended command, so
- * every argument is validated first and the call is rejected outright if any
- * contains one. Arguments here are fixed subcommands and a Supabase project
- * ref, never free-form input — the guard exists so that stays true even if a
- * future caller passes something unexpected.
- */
-export const run = (command, args) => {
+// shell: true because pnpm is a .cmd shim on Windows; the metacharacter
+// guard above keeps that from becoming command injection.
+export const runCli = (command, args) => {
   for (const arg of args) {
     if (SHELL_METACHARACTERS.test(String(arg))) {
       throw new Error(
@@ -131,7 +120,7 @@ export const linkSupabaseProject = ({
   }
 
   console.warn(`${logPrefix} ${projectRef}...`);
-  run('pnpm', ['exec', 'supabase', 'link', '--project-ref', projectRef, '--yes']);
+  runCli('pnpm', ['exec', 'supabase', 'link', '--project-ref', projectRef, '--yes']);
   return true;
 };
 
@@ -140,7 +129,7 @@ export const listLinkedMigrations = ({ logMessage } = {}) => {
     console.warn(logMessage);
   }
 
-  return run('pnpm', ['exec', 'supabase', 'migration', 'list', '--linked']);
+  return runCli('pnpm', ['exec', 'supabase', 'migration', 'list', '--linked']);
 };
 
 export const parseMigrationRows = (output) =>

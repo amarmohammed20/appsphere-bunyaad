@@ -1,9 +1,6 @@
-// A table created without row level security is readable by anyone holding
-// the anon key, which ships in the browser bundle — public by definition.
-// This scans every migration and fails if a table in the public schema is
-// created without RLS being enabled anywhere in the migration history.
-//
-// Runs before install in CI: it needs nothing but the filesystem.
+// A public table without RLS is readable by anyone holding the anon key,
+// which ships in the browser bundle. Needs only the filesystem, so CI runs
+// it before install.
 
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -12,6 +9,7 @@ const MIGRATIONS_DIR = path.join(process.cwd(), 'supabase', 'migrations');
 
 const CREATE_TABLE = /create\s+table\s+(?:if\s+not\s+exists\s+)?([^\s(]+)/gi;
 const ENABLE_RLS = /alter\s+table\s+(?:only\s+)?([^\s]+)\s+enable\s+row\s+level\s+security/gi;
+const DISABLE_RLS = /alter\s+table\s+(?:only\s+)?([^\s]+)\s+disable\s+row\s+level\s+security/gi;
 
 // `"public"."users"` and `public.users` both become `public.users`.
 function normaliseTableName(raw) {
@@ -44,6 +42,13 @@ for (const file of migrationFiles) {
 
   for (const table of collectMatches(sql, ENABLE_RLS)) {
     rlsEnabled.add(table);
+  }
+
+  // Files are processed in migration order, so a later migration disabling
+  // RLS removes the table from the protected set — enabled-then-disabled is
+  // the bypass this would otherwise miss.
+  for (const table of collectMatches(sql, DISABLE_RLS)) {
+    rlsEnabled.delete(table);
   }
 }
 

@@ -459,6 +459,45 @@ until a client project needs them.
 - [ ] Test the full flows in the browser after `db:reset` regenerates
       everything (sign in as both roles, promote, demote, last-admin rule)
 
+### From the PR #9 external review (2026-08-05)
+
+Fixed: last-admin rule moved into a DB trigger with an advisory lock (was
+app-only and bypassable via REST); anon/authenticated over-grants revoked;
+auth failures now logged in getSessionUser; profiles.email syncs on email
+change; signup trigger idempotent; password minimum aligned at 8 both sides;
+`//evil.com` open redirect closed via lib/returnPath; confirm endpoint
+accepts recovery tokens only; is_admin() no longer callable over RPC;
+refresh-before-push removes the stale-page flash; check:rls now catches a
+later `disable row level security`; seeded users have fixed ids; behavioural
+RLS checks added to the smoke script; unused users API, env.server.ts and
+the fields.tsx multi-export file removed.
+
+Declined:
+
+- `isSupabaseConfigured` stays `.some()` — with `.every()`, half-configured
+  env silently runs unconfigured; with `.some()` it fails loudly at startup,
+  which the file already documents as the intent.
+- `toRole` still throws on an unknown role — corruption should stop the
+  page, and adding a role is a deliberate two-file change; revisit as a
+  Postgres enum when roles next change.
+- PasswordStrength stays — bound to the real minimum now; above the minimum
+  it is guidance by design.
+- Shared form primitives stay in features/auth — components/shared is for
+  code used by two or more features; auth is the only consumer today.
+
+Deferred:
+
+- [ ] Seed via supabase.auth.admin.createUser instead of raw auth.users
+      inserts — survives GoTrue schema changes
+- [ ] Hosted auth config under version control (`supabase config push`) and
+      a CI assert that site_url is not localhost in production — the review
+      is right that reset emails redirecting to 127.0.0.1 is the classic
+      launch-day incident
+- [ ] Replace the check:rls regex with a pg_class query against the rebuilt
+      CI database — cannot be fooled; partitioned tables stop false-failing
+- [ ] Map the profiles email-collision case in handle_new_user to a
+      readable signup error
+
 ## 24. Error handling
 
 - [ ] Add global error boundary

@@ -8,14 +8,12 @@ import { signUp } from '../actions/signUp';
 import { authLabels } from '../data/labels';
 import { type AuthResult } from '../types';
 
-import {
-  Field,
-  FormError,
-  inputClasses,
-  PasswordInput,
-  PasswordStrength,
-  SubmitButton,
-} from './fields';
+import { Field } from './Field';
+import { FormError } from './FormError';
+import { inputClasses } from './inputClasses';
+import { PasswordInput } from './PasswordInput';
+import { PasswordStrength } from './PasswordStrength';
+import { SubmitButton } from './SubmitButton';
 
 export function SignUpForm() {
   const router = useRouter();
@@ -25,12 +23,12 @@ export function SignUpForm() {
 
   function handleSubmit(formData: FormData) {
     startTransition(async () => {
-      const outcome = await signUp(formData);
-      setResult(outcome);
+      const signUpResult = await signUp(formData);
+      setResult(signUpResult);
 
-      if (outcome.ok) {
-        router.push('/');
+      if (signUpResult.ok) {
         router.refresh();
+        router.push('/');
       }
     });
   }
@@ -39,13 +37,12 @@ export function SignUpForm() {
 
   return (
     <form action={handleSubmit} className="flex flex-col gap-4">
-      <div className="rise-1 rise">
+      <div className="fade-up fade-up-delay-1">
         <Field label={authLabels.nameField} error={fieldErrors?.fullName}>
           <input
             name="fullName"
             type="text"
             autoComplete="name"
-            autoFocus
             required
             aria-invalid={fieldErrors?.fullName !== undefined}
             className={inputClasses}
@@ -53,7 +50,7 @@ export function SignUpForm() {
         </Field>
       </div>
 
-      <div className="rise-2 rise">
+      <div className="fade-up fade-up-delay-2">
         <Field label={authLabels.emailField} error={fieldErrors?.email}>
           <input
             name="email"
@@ -66,7 +63,7 @@ export function SignUpForm() {
         </Field>
       </div>
 
-      <div className="rise-3 rise flex flex-col gap-2">
+      <div className="fade-up fade-up-delay-3 flex flex-col gap-2">
         <Field label={authLabels.passwordField} error={fieldErrors?.password}>
           <PasswordInput
             name="password"
@@ -80,7 +77,7 @@ export function SignUpForm() {
 
       {result?.ok === false && <FormError message={result.error} />}
 
-      <div className="rise-3 rise flex flex-col gap-5">
+      <div className="fade-up fade-up-delay-3 flex flex-col gap-5">
         <SubmitButton pending={isPending} pendingLabel={authLabels.signingUp}>
           {authLabels.signUp}
         </SubmitButton>

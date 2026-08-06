@@ -15,10 +15,10 @@ function SignedOutHome() {
     <main className="relative flex min-h-dvh flex-col items-center justify-center gap-10 overflow-hidden bg-zinc-50 px-4 dark:bg-zinc-950">
       <div
         aria-hidden
-        className="breathe absolute -top-40 left-1/2 h-80 w-[36rem] -translate-x-1/2 rounded-full bg-zinc-200/60 blur-3xl dark:bg-zinc-800/40"
+        className="glow-pulse absolute -top-40 left-1/2 h-80 w-[36rem] -translate-x-1/2 rounded-full bg-zinc-200/60 blur-3xl dark:bg-zinc-800/40"
       />
 
-      <div className="rise relative text-center">
+      <div className="fade-up relative text-center">
         <p className="text-sm font-semibold tracking-[0.3em] text-zinc-400 uppercase dark:text-zinc-500">
           Bunyaad
         </p>
@@ -30,7 +30,7 @@ function SignedOutHome() {
         </p>
       </div>
 
-      <div className="rise-2 rise relative flex items-center gap-3">
+      <div className="fade-up fade-up-delay-2 relative flex items-center gap-3">
         <Link
           href="/sign-in"
           className="rounded-lg bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white shadow-xs transition duration-150 hover:bg-zinc-700 active:scale-[0.985] dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
@@ -82,7 +82,7 @@ function SignedInHome({ user }: { user: SessionUser }) {
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-2xl flex-col gap-10 px-4 py-14">
-      <header className="rise flex items-start justify-between">
+      <header className="fade-up flex items-start justify-between">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
             {greeting}, {firstName}.
@@ -94,7 +94,7 @@ function SignedInHome({ user }: { user: SessionUser }) {
         <SignOutButton />
       </header>
 
-      <section className="rise-2 rise grid gap-3 sm:grid-cols-2">
+      <section className="fade-up fade-up-delay-2 grid gap-3 sm:grid-cols-2">
         {user.role === 'admin' ? (
           <ActionCard
             href="/users"

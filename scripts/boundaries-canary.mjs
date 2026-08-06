@@ -1,10 +1,6 @@
-// A boundaries config can pass lint while enforcing nothing — a pattern that
-// stops matching leaves files unclassified and every policy silently succeeds.
-// That happened twice during setup, so green lint is not evidence.
-//
-// Asserting the exact rule matters: a dead policy can still trip
-// no-unknown-files, which looks like success. Files are written to disk
-// because import/no-cycle resolves the real dependency graph.
+// A boundaries config whose patterns stop matching passes lint while
+// enforcing nothing — happened twice, so green lint is not evidence. Each
+// case asserts the exact rule; files go to disk for import/no-cycle.
 
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -45,7 +41,7 @@ const CASES = [
   {
     name: 'HTTP handler imports Supabase instead of delegating',
     rule: 'boundaries/dependencies',
-    path: 'src/features/users/api/__canary.ts',
+    path: 'src/features/auth/api/__canary.ts',
     code: `import { createClient } from '@/lib/supabase/server';\nexport const f = createClient;\n`,
   },
   {

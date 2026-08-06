@@ -25,7 +25,6 @@ export async function signIn(formData: FormData): Promise<AuthResult> {
   const result = await signInWithPassword(parsed.data);
 
   if (result.ok) {
-    // The whole layout renders differently signed in.
     revalidatePath('/', 'layout');
   }
 

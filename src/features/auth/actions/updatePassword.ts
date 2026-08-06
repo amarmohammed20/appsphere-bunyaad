@@ -1,6 +1,5 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { authLabels } from '../data/labels';
@@ -19,11 +18,6 @@ export async function updatePassword(formData: FormData): Promise<AuthResult> {
     };
   }
 
-  const result = await updatePasswordRecord(parsed.data.password);
-
-  if (result.ok) {
-    revalidatePath('/', 'layout');
-  }
-
-  return result;
+  // No revalidation: a password change alters nothing any page renders.
+  return await updatePasswordRecord(parsed.data.password);
 }

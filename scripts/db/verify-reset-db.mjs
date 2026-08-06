@@ -1,6 +1,4 @@
-// Smoke checks after `supabase db reset`: the rebuilt database must contain
-// what migrations plus seed promise. Runs psql inside the local container, so
-// it needs Docker and a running stack.
+// Runs after `supabase db reset`; needs Docker and the local stack up.
 
 import { execFileSync } from 'node:child_process';
 
@@ -42,7 +40,7 @@ const runSql = (sql) => {
   }
 };
 
-const assertEquals = (label, sql, expected) => {
+const assertQueryReturns = (label, sql, expected) => {
   const actual = runSql(sql);
 
   if (actual !== expected) {
@@ -55,40 +53,94 @@ const assertEquals = (label, sql, expected) => {
 
 console.warn(`Running reset smoke checks against ${dbContainerName}...`);
 
-assertEquals(
+assertQueryReturns(
   'Seeded account count',
   "select count(*)::text from auth.users where email in ('admin@example.com', 'member@example.com');",
   '2',
 );
 
-assertEquals(
+assertQueryReturns(
   'Signup trigger created both profiles',
   "select count(*)::text from public.profiles where email in ('admin@example.com', 'member@example.com');",
   '2',
 );
 
-assertEquals(
+assertQueryReturns(
   'Seeded admin has the admin role',
   "select role from public.profiles where email = 'admin@example.com';",
   'admin',
 );
 
-assertEquals(
+assertQueryReturns(
   'RLS enabled on profiles',
   "select relrowsecurity::text from pg_class where oid = 'public.profiles'::regclass;",
   'true',
 );
 
-assertEquals(
+assertQueryReturns(
   'profiles policy count',
   "select count(*)::text from pg_policies where schemaname = 'public' and tablename = 'profiles';",
   '4',
 );
 
-assertEquals(
+assertQueryReturns(
   'updated_at trigger present',
   "select count(*)::text from pg_trigger where tgrelid = 'public.profiles'::regclass and tgname = 'profiles_set_updated_at';",
   '1',
+);
+
+// Policy count proves policies exist, not that they work — so also behave
+// like a signed-in member (same claims a browser carries), rolled back after.
+const MEMBER_ID = '10000000-0000-4000-8000-000000000002';
+const asMember = (sql) =>
+  `begin;
+   select set_config('request.jwt.claims',
+     '{"sub":"${MEMBER_ID}","role":"authenticated"}', true);
+   set local role authenticated;
+   ${sql}
+   rollback;`;
+
+assertQueryReturns(
+  'RLS: member sees only their own profile',
+  asMember(`select count(*)::text from public.profiles;`),
+  '1',
+);
+
+assertQueryReturns(
+  'RLS: member cannot promote themselves',
+  asMember(`with attempt as (
+     update public.profiles set role = 'admin'
+     where id = '${MEMBER_ID}' returning 1
+   ) select count(*)::text from attempt;`),
+  '0',
+);
+
+const assertQueryRaises = (label, sql, expectedFragment) => {
+  try {
+    execFileSync('docker', [...sqlCommandPrefix, sql], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+  } catch (error) {
+    const stderr = typeof error?.stderr === 'string' ? error.stderr : '';
+
+    if (stderr.includes(expectedFragment)) {
+      console.warn(`${label} OK (refused)`);
+      return;
+    }
+
+    console.error(`::error::${label} failed for the wrong reason: ${stderr.trim()}`);
+    process.exit(1);
+  }
+
+  console.error(`::error::${label} — the write was allowed but must be refused.`);
+  process.exit(1);
+};
+
+assertQueryRaises(
+  'Trigger: demoting the last admin is refused even for superuser',
+  `update public.profiles set role = 'member' where email = 'admin@example.com';`,
+  'at least one admin',
 );
 
 console.warn('Reset smoke checks passed.');

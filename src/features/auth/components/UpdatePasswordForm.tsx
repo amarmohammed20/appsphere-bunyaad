@@ -7,7 +7,11 @@ import { updatePassword } from '../actions/updatePassword';
 import { authLabels } from '../data/labels';
 import { type AuthResult } from '../types';
 
-import { Field, FormError, PasswordInput, PasswordStrength, SubmitButton } from './fields';
+import { Field } from './Field';
+import { FormError } from './FormError';
+import { PasswordInput } from './PasswordInput';
+import { PasswordStrength } from './PasswordStrength';
+import { SubmitButton } from './SubmitButton';
 
 export function UpdatePasswordForm() {
   const router = useRouter();
@@ -17,12 +21,12 @@ export function UpdatePasswordForm() {
 
   function handleSubmit(formData: FormData) {
     startTransition(async () => {
-      const outcome = await updatePassword(formData);
-      setResult(outcome);
+      const updateResult = await updatePassword(formData);
+      setResult(updateResult);
 
-      if (outcome.ok) {
-        router.push('/');
+      if (updateResult.ok) {
         router.refresh();
+        router.push('/');
       }
     });
   }
@@ -31,7 +35,7 @@ export function UpdatePasswordForm() {
 
   return (
     <form action={handleSubmit} className="flex flex-col gap-4">
-      <div className="rise-1 rise flex flex-col gap-2">
+      <div className="fade-up fade-up-delay-1 flex flex-col gap-2">
         <Field label={authLabels.passwordField} error={fieldErrors?.password}>
           <PasswordInput
             name="password"
@@ -45,7 +49,7 @@ export function UpdatePasswordForm() {
 
       {result?.ok === false && <FormError message={result.error} />}
 
-      <div className="rise-2 rise">
+      <div className="fade-up fade-up-delay-2">
         <SubmitButton pending={isPending} pendingLabel={authLabels.updatingPassword}>
           {authLabels.updatePassword}
         </SubmitButton>

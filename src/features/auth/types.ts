@@ -1,2 +1,3 @@
-export type AuthResult =
-  { ok: true } | { ok: false; error: string; fieldErrors?: Record<string, string[]> };
+import { type MutationResult } from '@/types/mutation';
+
+export type AuthResult = MutationResult;

@@ -1,6 +1,5 @@
-// Final safety check before a dry-run push: the migrations about to be
-// pushed must be exactly the ones this PR changed, sitting as the contiguous
-// tail of the migration history. Ported from itc.
+// The migrations about to be pushed must be exactly the ones this PR
+// changed, sitting as the contiguous tail of the history.
 
 import { readdirSync } from 'node:fs';
 import path from 'node:path';

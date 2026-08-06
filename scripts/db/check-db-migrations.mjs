@@ -1,5 +1,4 @@
-// Classifies local vs remote migration history into one of four states, so
-// the workflow can decide what still needs to run. Ported from itc.
+// Emits one of four statuses the workflow keys its remaining steps off:
 //
 //   aligned                — nothing to do
 //   local_only_tail_valid  — this PR adds new migrations at the end; valid,

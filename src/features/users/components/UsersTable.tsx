@@ -12,13 +12,13 @@ export function UsersTable({ users, currentUserId }: { users: User[]; currentUse
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  function run(mutation: () => Promise<{ ok: boolean; error?: string }>) {
+  function runMutation(mutation: () => Promise<{ ok: boolean; error?: string }>) {
     startTransition(async () => {
       setError(null);
-      const result = await mutation();
+      const mutationResult = await mutation();
 
-      if (!result.ok) {
-        setError(result.error ?? usersLabels.failure);
+      if (!mutationResult.ok) {
+        setError(mutationResult.error ?? usersLabels.failure);
       }
     });
   }
@@ -69,16 +69,14 @@ export function UsersTable({ users, currentUserId }: { users: User[]; currentUse
                   <td className="px-4 py-3">
                     <select
                       value={user.role}
-                      // Own row is untouchable — the same rule the server and
-                      // RLS enforce; disabling it here just says so up front.
+                      // The no-self rule, surfaced up front.
                       disabled={isPending || isSelf}
                       onChange={(event) => {
-                        // find() narrows the raw input string to UserRole
-                        // without a type assertion, which lint forbids.
+                        // find() narrows without a cast, which lint forbids.
                         const role = USER_ROLES.find((known) => known === event.target.value);
 
                         if (role !== undefined) {
-                          run(() => updateUserRole(user.id, role));
+                          runMutation(() => updateUserRole(user.id, role));
                         }
                       }}
                       className="rounded-lg border border-zinc-300 bg-transparent px-2 py-1.5 text-sm transition focus:border-zinc-900 focus:outline-none disabled:opacity-40 dark:border-zinc-700 dark:focus:border-zinc-100"
@@ -95,7 +93,7 @@ export function UsersTable({ users, currentUserId }: { users: User[]; currentUse
                     <button
                       type="button"
                       disabled={isPending || isSelf}
-                      onClick={() => run(() => deleteUser(user.id))}
+                      onClick={() => runMutation(() => deleteUser(user.id))}
                       className="rounded-lg px-2 py-1.5 text-sm text-red-600 transition hover:bg-red-50 disabled:opacity-40 dark:text-red-400 dark:hover:bg-red-950"
                     >
                       {usersLabels.delete}

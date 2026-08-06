@@ -4,9 +4,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { clientEnv, isSupabaseConfigured } from '@/lib/env';
 import { type Database } from '@/types/database.types';
 
-// Unconfigured in production is a broken deploy, not a fresh clone. Without
-// this the only symptom is users being signed out at random, with nothing in
-// the logs. Module scope, so it is logged once rather than on every request.
+// In production, unconfigured is a broken deploy — without this line its only
+// symptom is users signed out at random. Module scope: logged once.
 if (!isSupabaseConfigured && process.env.NODE_ENV === 'production') {
   console.error(
     'Supabase is not configured, so sessions are never refreshed. Set ' +
@@ -14,12 +13,8 @@ if (!isSupabaseConfigured && process.env.NODE_ENV === 'production') {
   );
 }
 
-/**
- * Refreshes the auth session on every request. Server Components cannot write
- * cookies, so the refreshed token has to be set here.
- */
+// Server Components cannot write cookies, so the refreshed token is set here.
 export async function updateSession(request: NextRequest) {
-  // No Supabase project yet — nothing to refresh.
   if (!isSupabaseConfigured) {
     return NextResponse.next({ request });
   }

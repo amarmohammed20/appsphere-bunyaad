@@ -7,8 +7,6 @@ import { type Database } from '@/types/database.types';
 import { USER_ROLES } from '../data/constants';
 import { type User } from '../types';
 
-// Derived from the generated schema types, so a column rename fails the build
-// here rather than at runtime.
 type ProfileRow = Pick<
   Database['public']['Tables']['profiles']['Row'],
   'id' | 'full_name' | 'email' | 'role' | 'created_at'
@@ -16,9 +14,8 @@ type ProfileRow = Pick<
 
 const PROFILE_COLUMNS = 'id, full_name, email, role, created_at';
 
-// The database constrains role with a CHECK, but the generated type is plain
-// `string` — codegen cannot see CHECK constraints. Narrow it explicitly and
-// treat an unknown value as the data corruption it would be.
+// Codegen cannot see CHECK constraints, so the generated type is plain
+// string; an unknown value is corruption and throws.
 function toRole(value: string): User['role'] {
   const role = USER_ROLES.find((known) => known === value);
 
@@ -39,8 +36,7 @@ function toUser(row: ProfileRow): User {
   };
 }
 
-// Requires admin: the member view of the app has no user list. RLS enforces
-// the same rule underneath — this check is the friendly error, not the wall.
+// The friendly error; RLS is the wall underneath.
 export async function listUsers(): Promise<User[]> {
   await requireRole('admin');
 

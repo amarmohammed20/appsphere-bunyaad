@@ -6,11 +6,8 @@ import { createClient } from '@/lib/supabase/server';
 import { usersLabels } from '../data/labels';
 import { type UserMutationResult } from '../types';
 
-/**
- * The only place a profile is removed. Deleting the profile row is enough for
- * the app; removing the auth account itself needs the service role key and
- * belongs to an admin backend, not a request handler.
- */
+// Removes only the profile row — deleting the auth account needs the
+// service role key and belongs to an admin backend, not a request handler.
 export async function deleteUser(id: string): Promise<UserMutationResult> {
   const actor = await requireRole('admin');
 

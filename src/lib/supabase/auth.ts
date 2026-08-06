@@ -12,10 +12,9 @@ export interface SessionUser {
   role: SessionRole;
 }
 
-/** The signed-in user with their role, or null. One query, no throwing. */
 export async function getSessionUser(): Promise<SessionUser | null> {
-  // No Supabase means no accounts, so nobody is signed in. Keeps a fresh
-  // clone — and the CI build, which has no env — running.
+  // Unconfigured means no accounts exist — keeps a fresh clone and the
+  // env-less CI build running instead of throwing.
   if (!isSupabaseConfigured) {
     return null;
   }
@@ -24,9 +23,15 @@ export async function getSessionUser(): Promise<SessionUser | null> {
 
   const {
     data: { user },
+    error,
   } = await supabase.auth.getUser();
 
   if (user === null) {
+    // A wrong anon key would otherwise present as everyone quietly signed out.
+    if (error !== null && error.name !== 'AuthSessionMissingError') {
+      console.error('getSessionUser auth failure', { code: error.code, name: error.name });
+    }
+
     return null;
   }
 
@@ -48,7 +53,6 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   };
 }
 
-/** Call at the top of any read or write that needs a session. Reads throw. */
 export async function requireUser(): Promise<SessionUser> {
   const user = await getSessionUser();
 
@@ -59,7 +63,6 @@ export async function requireUser(): Promise<SessionUser> {
   return user;
 }
 
-/** Call at the top of any read or write that needs a specific role. */
 export async function requireRole(role: SessionRole): Promise<SessionUser> {
   const user = await requireUser();
 

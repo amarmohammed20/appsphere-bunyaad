@@ -4,11 +4,7 @@ import { redirect } from 'next/navigation';
 
 import { getSessionUser, type SessionUser } from '@/lib/supabase/auth';
 
-/**
- * For pages: signed out goes to sign-in and comes back here after; a member
- * goes home. Queries and writes still guard themselves — this is navigation,
- * not security.
- */
+// Navigation, not security — queries and writes still guard themselves.
 export async function requireAdminPage(): Promise<SessionUser> {
   const user = await getSessionUser();
 

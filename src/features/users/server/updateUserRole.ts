@@ -6,7 +6,6 @@ import { createClient } from '@/lib/supabase/server';
 import { usersLabels } from '../data/labels';
 import { type UserMutationResult, type UserRole } from '../types';
 
-/** The only place a role is changed. RLS enforces the same rules underneath. */
 export async function updateUserRole(id: string, role: UserRole): Promise<UserMutationResult> {
   const actor = await requireRole('admin');
 
@@ -16,8 +15,7 @@ export async function updateUserRole(id: string, role: UserRole): Promise<UserMu
 
   const supabase = await createClient();
 
-  // Demoting the last admin would leave the system adminless, with nobody
-  // able to appoint another. Refuse.
+  // Friendly pre-check; the profiles_protect_last_admin trigger is the wall.
   if (role === 'member') {
     const { count } = await supabase
       .from('profiles')

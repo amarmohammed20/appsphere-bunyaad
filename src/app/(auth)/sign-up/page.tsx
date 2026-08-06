@@ -1,4 +1,4 @@
-import { AuthHeading } from '@/features/auth/components/fields';
+import { AuthHeading } from '@/features/auth/components/AuthHeading';
 import { SignUpForm } from '@/features/auth/components/SignUpForm';
 import { authLabels } from '@/features/auth/data/labels';
 

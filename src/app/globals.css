@@ -25,9 +25,7 @@ body {
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
-/* Entrance motion: content settles into place, one beat after the layout.
-   Communicates "ready", never decoration. */
-@keyframes rise {
+@keyframes fade-up {
   from {
     opacity: 0;
     transform: translateY(8px);
@@ -38,22 +36,21 @@ body {
   }
 }
 
-.rise {
-  animation: rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+.fade-up {
+  animation: fade-up 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-.rise-1 {
+.fade-up-delay-1 {
   animation-delay: 0.05s;
 }
-.rise-2 {
+.fade-up-delay-2 {
   animation-delay: 0.12s;
 }
-.rise-3 {
+.fade-up-delay-3 {
   animation-delay: 0.19s;
 }
 
-/* Ambient glow for the brand panel — one slow breath, barely there. */
-@keyframes breathe {
+@keyframes glow-pulse {
   0%,
   100% {
     opacity: 0.5;
@@ -63,17 +60,16 @@ body {
   }
 }
 
-.breathe {
-  animation: breathe 9s ease-in-out infinite;
+.glow-pulse {
+  animation: glow-pulse 9s ease-in-out infinite;
 }
 
-/* Motion is a courtesy, not a requirement. */
 @media (prefers-reduced-motion: reduce) {
-  .rise,
-  .rise-1,
-  .rise-2,
-  .rise-3,
-  .breathe {
+  .fade-up,
+  .fade-up-delay-1,
+  .fade-up-delay-2,
+  .fade-up-delay-3,
+  .glow-pulse {
     animation: none;
   }
 

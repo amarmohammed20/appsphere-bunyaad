@@ -1,12 +1,13 @@
--- Local development accounts. Applied only by `pnpm db:reset` — seeds never
--- run against a hosted project, so nothing here can reach production.
+-- Local accounts, applied only by `pnpm db:reset` — seeds never run
+-- against a hosted project.
 --
 --   admin@example.com  / password123   (admin)
 --   member@example.com / password123   (member)
 --
--- Two accounts because role management cannot be demonstrated with one:
--- there must be someone to promote, and the last-admin rule needs a second
--- user to even be testable.
+-- Two accounts: role management needs someone to promote, and the last-admin
+-- rule needs a second user to be testable. The raw auth.users insert shape is
+-- coupled to GoTrue and verified against CLI 2.111 — if a Supabase upgrade
+-- breaks db:reset, this file is the first suspect (TODO section 5).
 
 insert into auth.users (
   instance_id,
@@ -27,7 +28,7 @@ insert into auth.users (
 )
 select
   '00000000-0000-0000-0000-000000000000',
-  gen_random_uuid(),
+  account.id,
   'authenticated',
   'authenticated',
   account.email,
@@ -43,9 +44,9 @@ select
   ''
 from (
   values
-    ('admin@example.com', 'Amara Okafor'),
-    ('member@example.com', 'Jonas Weber')
-) as account (email, full_name);
+    ('10000000-0000-4000-8000-000000000001'::uuid, 'admin@example.com', 'Amara Okafor'),
+    ('10000000-0000-4000-8000-000000000002'::uuid, 'member@example.com', 'Jonas Weber')
+) as account (id, email, full_name);
 
 insert into auth.identities (
   provider_id,
@@ -67,6 +68,6 @@ select
 from auth.users
 where email in ('admin@example.com', 'member@example.com');
 
--- The trigger created both profiles as members; the first admin is appointed
--- here. In production this step is the one-time role flip in the dashboard.
+-- The trigger made both members; in production this flip happens once in
+-- the dashboard.
 update public.profiles set role = 'admin' where email = 'admin@example.com';

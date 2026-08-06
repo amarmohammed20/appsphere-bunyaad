@@ -1,3 +1,5 @@
+import { type MutationResult } from '@/types/mutation';
+
 import { type USER_ROLES } from './data/constants';
 
 export type UserRole = (typeof USER_ROLES)[number];
@@ -10,5 +12,4 @@ export interface User {
   createdAt: string;
 }
 
-export type UserMutationResult =
-  { ok: true } | { ok: false; error: string; fieldErrors?: Record<string, string[]> };
+export type UserMutationResult = MutationResult;

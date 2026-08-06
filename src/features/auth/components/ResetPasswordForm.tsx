@@ -7,7 +7,10 @@ import { requestPasswordReset } from '../actions/requestPasswordReset';
 import { authLabels } from '../data/labels';
 import { type AuthResult } from '../types';
 
-import { Field, FormError, inputClasses, SubmitButton } from './fields';
+import { Field } from './Field';
+import { FormError } from './FormError';
+import { inputClasses } from './inputClasses';
+import { SubmitButton } from './SubmitButton';
 
 export function ResetPasswordForm() {
   const [isPending, startTransition] = useTransition();
@@ -21,7 +24,7 @@ export function ResetPasswordForm() {
 
   if (result?.ok === true) {
     return (
-      <div className="rise flex flex-col items-center gap-4 text-center">
+      <div className="fade-up flex flex-col items-center gap-4 text-center">
         <span className="flex size-11 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400">
           <svg aria-hidden viewBox="0 0 16 16" className="size-5" fill="none">
             <path
@@ -48,13 +51,12 @@ export function ResetPasswordForm() {
 
   return (
     <form action={handleSubmit} className="flex flex-col gap-4">
-      <div className="rise-1 rise">
+      <div className="fade-up fade-up-delay-1">
         <Field label={authLabels.emailField} error={fieldErrors?.email}>
           <input
             name="email"
             type="email"
             autoComplete="email"
-            autoFocus
             required
             aria-invalid={fieldErrors?.email !== undefined}
             className={inputClasses}
@@ -64,7 +66,7 @@ export function ResetPasswordForm() {
 
       {result?.ok === false && <FormError message={result.error} />}
 
-      <div className="rise-2 rise flex flex-col gap-5">
+      <div className="fade-up fade-up-delay-2 flex flex-col gap-5">
         <SubmitButton pending={isPending} pendingLabel={authLabels.sendingReset}>
           {authLabels.sendReset}
         </SubmitButton>
