@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
-import { toSafeReturnPath } from '@/lib/returnPath';
+import { toSafeReturnPath } from '@/lib/toSafeReturnPath';
 
 import { verifyEmailToken } from '../server/verifyEmailToken';
 

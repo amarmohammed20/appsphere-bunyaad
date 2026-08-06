@@ -1,13 +1,13 @@
 import 'server-only';
 
-import { createClient } from '@/lib/supabase/server';
+import { createSupabaseClient } from '@/lib/supabase/createSupabaseClient';
 
 import { authLabels } from '../data/labels';
 import { type SignInInput } from '../schemas/credentials';
 import { type AuthResult } from '../types';
 
 export async function signInWithPassword(input: SignInInput): Promise<AuthResult> {
-  const supabase = await createClient();
+  const supabase = await createSupabaseClient();
 
   const { error } = await supabase.auth.signInWithPassword({
     email: input.email,

@@ -1,19 +1,19 @@
 import 'server-only';
 
-import { requireRole } from '@/lib/supabase/auth';
-import { createClient } from '@/lib/supabase/server';
+import { requireAdmin } from '@/lib/auth/session';
+import { createSupabaseClient } from '@/lib/supabase/createSupabaseClient';
 
 import { usersLabels } from '../data/labels';
 import { type UserMutationResult, type UserRole } from '../types';
 
 export async function updateUserRole(id: string, role: UserRole): Promise<UserMutationResult> {
-  const actor = await requireRole('admin');
+  const actor = await requireAdmin();
 
   if (id === actor.id) {
     return { ok: false, error: usersLabels.cannotChangeSelf };
   }
 
-  const supabase = await createClient();
+  const supabase = await createSupabaseClient();
 
   // Friendly pre-check; the profiles_protect_last_admin trigger is the wall.
   if (role === 'member') {

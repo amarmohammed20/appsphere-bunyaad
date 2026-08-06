@@ -1,8 +1,8 @@
 import 'server-only';
 
-import { createClient } from '@/lib/supabase/server';
+import { createSupabaseClient } from '@/lib/supabase/createSupabaseClient';
 
 export async function signOutUser(): Promise<void> {
-  const supabase = await createClient();
+  const supabase = await createSupabaseClient();
   await supabase.auth.signOut();
 }

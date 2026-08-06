@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { clientEnv, isSupabaseConfigured } from '@/lib/env';
+import { withHttpOnly } from '@/lib/supabase/withHttpOnly';
 import { type Database } from '@/types/database.types';
 
 // In production, unconfigured is a broken deploy — without this line its only
@@ -13,8 +14,12 @@ if (!isSupabaseConfigured && process.env.NODE_ENV === 'production') {
   );
 }
 
-// Server Components cannot write cookies, so the refreshed token is set here.
-export async function updateSession(request: NextRequest) {
+/**
+ * Refreshes an expiring access token and writes the new session onto the
+ * response. Runs from `src/proxy.ts`, the only point in a request where writing
+ * a cookie is still legal. See ./README.md.
+ */
+export async function refreshSession(request: NextRequest) {
   if (!isSupabaseConfigured) {
     return NextResponse.next({ request });
   }
@@ -29,13 +34,21 @@ export async function updateSession(request: NextRequest) {
         getAll() {
           return request.cookies.getAll();
         },
-        setAll(cookiesToSet) {
+        setAll(cookiesToSet, headers) {
           cookiesToSet.forEach(({ name, value }) => {
             request.cookies.set(name, value);
           });
+
           response = NextResponse.next({ request });
+
           cookiesToSet.forEach(({ name, value, options }) => {
-            response.cookies.set(name, value, options);
+            response.cookies.set(name, value, withHttpOnly(options));
+          });
+
+          // no-store/no-cache. A response carrying a Set-Cookie for one user's
+          // session must never be cached by a CDN and replayed to another.
+          Object.entries(headers).forEach(([key, headerValue]) => {
+            response.headers.set(key, headerValue);
           });
         },
       },

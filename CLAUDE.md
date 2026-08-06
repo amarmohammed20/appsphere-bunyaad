@@ -34,11 +34,48 @@ code goes, and why.
 The rules you will hit most:
 
 - Features never import other features.
-- Only `server/` may import the Supabase server client.
+- Only `server/` may import `lib/supabase/` or `lib/auth/`.
 - Components call actions, never queries.
 - `data/` holds compile-time literals only.
 - No barrel files. Import the file you want.
 - No top-level `helpers/` or `utils/`.
+
+## Naming
+
+A file is named after what it exports.
+
+- **One export** — the file is that name. `deleteUser.ts` exports `deleteUser`.
+  `refreshSession.ts` exports `refreshSession`. Searching for the name finds
+  the file, and the import line already says what will happen.
+- **Several exports always read together** — the file is named for the concept.
+  `lib/auth/session.ts` exports `getSessionUser`, `requireUser` and
+  `requireAdmin`, which build on each other and are never read apart.
+
+Other rules:
+
+- **Named exports only.** No `export default` outside the Next conventions
+  (`page.tsx`, `layout.tsx`, `route.ts`). A default export can be imported
+  under any name, so the same function ends up called three different things.
+- **Directories kebab-case, components PascalCase**, matching their export.
+- **No adjective that repeats the folder.** Inside `lib/supabase/`, a file
+  called `supabaseHelpers.ts` says nothing the path did not already say.
+- **Do not name a file after a framework convention unless it is one.**
+  `src/proxy.ts` is required by Next. A second `proxy.ts` holding our own code
+  was renamed to `refreshSession.ts`, because it names a job, not a convention.
+
+### Vendor names
+
+A vendor name may appear only at the boundary that talks to that vendor.
+Domain code names domain concepts.
+
+- `lib/supabase/createSupabaseClient.ts` — correct. It _is_ the Supabase
+  boundary, and hiding that would make the one honest place dishonest.
+- `lib/auth/session.ts` — correct. A session and a role exist in every app.
+  This lived in `lib/supabase/` and was misfiled.
+
+This is a naming rule, not an architecture rule. Do **not** wrap the SDK in a
+generic `Database` interface to prepare for a migration — see TODO section 21
+for why that was declined.
 
 ## Do not
 

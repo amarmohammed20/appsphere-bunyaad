@@ -55,9 +55,12 @@ Source: App Build Guard Rails.
       Windows Docker; `schema_paths` on for declarative schemas)
 - [x] Create `supabase/migrations/` — first migration generated from
       `supabase/schemas/users.sql` via `pnpm db:diff`, never hand-written
-- [x] Add `lib/supabase/client.ts`
-- [x] Add `lib/supabase/server.ts`
-- [x] Add `lib/supabase/proxy.ts`
+- [x] Add `lib/supabase/withHttpOnly.ts` — `HttpOnly` on the session cookies.
+      Replaced `lib/supabase/client.ts`, which was never imported; see 18a.
+- [x] Add `lib/supabase/createSupabaseClient.ts`
+- [x] Add `lib/supabase/refreshSession.ts` (was `proxy.ts` — renamed so it does
+      not collide with the Next convention file `src/proxy.ts`)
+- [x] Add `lib/supabase/README.md` answering "why more than one client?"
 - [x] Add `proxy.ts` for session refresh (Next 16 renamed middleware to proxy)
 - [x] Generate `src/types/database.types.ts` from the real schema (`pnpm db:types`)
 - [x] Add script to generate Supabase types
@@ -185,7 +188,7 @@ Decided: **feature-first**. Reasoning in
 - [x] Rule: features never import other features
 - [x] Rule: only server/ may import lib/supabase
 - [x] No barrel files — direct imports (see src/features/README.md)
-- [ ] Document naming conventions (kebab-case dirs, PascalCase components)
+- [x] Document naming conventions — CLAUDE.md "Naming"
 - [x] Close fail-open holes: no-unknown-files, no-unknown-dependencies, external SDK
 - [x] Add `test:boundaries` canary proving the rules actually fire
 - [x] Run `test:boundaries` in CI only. It was in pre-push until CI existed;
@@ -227,7 +230,8 @@ adopted, give it a pointer to `CLAUDE.md` rather than a copy.
 - [x] `CLAUDE.md`: quality gate commands
 - [x] `CLAUDE.md`: do-not-touch areas
 - [x] `CLAUDE.md`: structure rules, pointing at `src/features/README.md`
-- [ ] `CLAUDE.md`: naming conventions — not written down anywhere yet
+- [x] `CLAUDE.md`: naming conventions — file named after its export, named
+      exports only, no adjective repeating the folder
 - [ ] `CLAUDE.md`: product knowledge section, per project
 - [ ] Add `.claude/settings.json`
 - [ ] Decide sync mechanism for `.claude/` across repos
@@ -354,7 +358,61 @@ adopted, give it a pointer to `CLAUDE.md` rather than a copy.
 - [ ] Configure CORS in `next.config.ts`
 - [ ] Add rate limiting to API routes
 - [ ] Add generic API error response helper
-- [ ] Add security headers (CSP, X-Frame-Options)
+- [x] Add security headers — `next.config.ts` sets `X-Content-Type-Options`,
+      `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy` and HSTS
+- [ ] Add Content-Security-Policy. Deliberately not done with the headers above:
+      a useful CSP needs a per-request nonce, which means generating one in
+      `src/proxy.ts` and putting it on the request headers so Next can stamp its
+      own inline scripts. A constant CSP would need `'unsafe-inline'`, which
+      permits exactly the injection it claims to stop. Its own change, verified
+      in a browser.
+
+### 18a. Close the XSS session-theft vector
+
+Who can read the auth cookies, and whether we can stop them:
+
+| Attack                    | How                                          | Stoppable?                |
+| ------------------------- | -------------------------------------------- | ------------------------- |
+| XSS                       | injected JS reads `document.cookie`          | **Yes — this is the one** |
+| Malicious npm package     | ships into the bundle, then behaves like XSS | Partly                    |
+| Browser extension         | reads cookies via extension APIs             | No                        |
+| Malware on the machine    | reads the browser's cookie file from disk    | No                        |
+| Network sniffing          | intercepts the request                       | Yes — HTTPS               |
+| Physical access, unlocked | opens devtools                               | No                        |
+
+Extensions and malware run at higher privilege than the page. There is no code
+that detects or blocks them — the controls are policy (extension allowlist),
+not application code. That is exactly why short expiry and refresh rotation
+exist: theft is partly unpreventable, so the damage is capped instead.
+
+Already covering this: no XSS injection points (zero `dangerouslySetInnerHTML`,
+`innerHTML`, `eval`); supply-chain hardening (`minimumReleaseAge`,
+`blockExoticSubdeps`, exact pinning, CI secret scan); 1h token expiry with
+rotation; RLS, so even a valid stolen token only returns that user's rows.
+
+Done:
+
+- [x] Set auth cookies `HttpOnly` via `lib/supabase/withHttpOnly.ts`. The
+      browser now refuses to expose them to JavaScript — `document.cookie`
+      returns nothing and XSS cannot steal a session.
+- [x] Deleted `lib/supabase/client.ts`. It was never imported, and keeping it
+      would have meant keeping the cookies JS-readable for code that did not
+      exist. A project needing Realtime or direct Storage uploads reintroduces
+      it deliberately, dropping `HttpOnly` as a recorded decision.
+- [x] Copy the `headers` argument of `setAll` onto the response in
+      `refreshSession.ts` — `Cache-Control: no-store` and friends. Without it a
+      CDN may cache a response carrying one user's `Set-Cookie` and replay it to
+      another. The SDK has passed these since @supabase/ssr added the argument;
+      we were dropping them.
+
+Still open:
+
+- [ ] Verify in a browser after `db:reset`: sign in, then confirm
+      `document.cookie` in devtools shows no `sb-*` entry while the session
+      still works. Blocked on Docker being up.
+- [ ] Add a lint rule or canary that fails if `createBrowserClient` is
+      reintroduced without also removing `withHttpOnly` — right now the two
+      decisions are only linked by prose.
 
 ## 19. Sensitive data exposure
 
@@ -399,6 +457,31 @@ adopted, give it a pointer to `CLAUDE.md` rather than a copy.
 - [ ] Document the rule: no hardcoded user-facing strings
 
 ## 21. Data layer
+
+Declined: **wrapping the Supabase SDK in a generic `Database` interface** so the
+app could survive a move off Supabase. Recorded here because it sounds prudent
+and will be re-proposed otherwise.
+
+- The security model cannot be wrapped. RLS policies, `auth.uid()`, the
+  `security definer` functions and the `protect_last_admin` trigger live in
+  Postgres and are enforced there. An application-layer interface cannot move
+  them, so the part most worth protecting is the part least able to be.
+- The abstraction leaks immediately. Refresh-token rotation, `getUser()`'s
+  network round trip, PKCE, cookie chunking — no vendor-neutral interface has
+  these, so its methods end up named after Supabase's anyway.
+- It does not pay off on the day it is meant to. Leaving Supabase means writing
+  session issuance, refresh rotation and email verification from scratch: a new
+  subsystem, not a swap behind an interface.
+
+What actually limits the blast radius is already in place: Supabase appears in
+`src/features/` at roughly 15 call sites, all inside `server/`, and a boundaries
+rule stops anything else importing the SDK. Changing 15 known places is cheaper
+than maintaining an indirection for years.
+
+Related naming rule (kept): vendor names only at the vendor boundary — see
+CLAUDE.md "Vendor names". `lib/supabase/auth.ts` moved to `lib/auth/session.ts`
+under that rule, with a new `lib-auth` boundaries element so it stays reachable
+only from `server/` and cannot be laundered to a Client Component via `lib`.
 
 - [ ] Decide: Supabase client only, or Prisma alongside it
 - [ ] Add `lib/dbCalls/[entity]/` pattern — all queries live here
@@ -449,13 +532,19 @@ until a client project needs them.
 - [x] Add email link handling — `/auth/confirm` verifies and forwards
 - [ ] Add OAuth provider example — deliberately deferred
 - [x] Add protected route pattern — `requireAdminPage()` redirect guard
-- [x] Add role checking helpers — `requireUser` / `requireRole` in lib/supabase
+- [x] Add role checking helpers — `requireUser` / `requireAdmin` in lib/auth.
+      `requireRole(role)` was dropped: with two roles it only ever meant
+      admin, and `requireRole('member')` would have rejected admins.
 - [x] Add `profiles` table — trigger-created from auth.users, real RLS
       policies, demo policies gone
 - [ ] Separate sensitive user data into its own RLS-protected table — when
       there is sensitive data to separate
 - [x] Add session handling in server components — `getSessionUser()`
 - [ ] Document auth redirect URL config per environment (needed at deploy)
+- [x] Set session expiry — `inactivity_timeout = "720h"` (30 days). Without it
+      a session never expires. See docs/how-auth-works.md section 5.
+- [ ] Set the same 30-day inactivity timeout in the hosted project's dashboard
+      until `supabase config push` is wired up — config.toml is local-only
 - [ ] Test the full flows in the browser after `db:reset` regenerates
       everything (sign in as both roles, promote, demote, last-admin rule)
 
@@ -465,7 +554,7 @@ Fixed: last-admin rule moved into a DB trigger with an advisory lock (was
 app-only and bypassable via REST); anon/authenticated over-grants revoked;
 auth failures now logged in getSessionUser; profiles.email syncs on email
 change; signup trigger idempotent; password minimum aligned at 8 both sides;
-`//evil.com` open redirect closed via lib/returnPath; confirm endpoint
+`//evil.com` open redirect closed via lib/toSafeReturnPath; confirm endpoint
 accepts recovery tokens only; is_admin() no longer callable over RPC;
 refresh-before-push removes the stale-page flash; check:rls now catches a
 later `disable row level security`; seeded users have fixed ids; behavioural

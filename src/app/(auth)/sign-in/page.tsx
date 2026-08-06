@@ -1,7 +1,7 @@
 import { AuthHeading } from '@/features/auth/components/AuthHeading';
 import { SignInForm } from '@/features/auth/components/SignInForm';
 import { authLabels } from '@/features/auth/data/labels';
-import { toSafeReturnPath } from '@/lib/returnPath';
+import { toSafeReturnPath } from '@/lib/toSafeReturnPath';
 
 export const metadata = { title: 'Sign in' };
 

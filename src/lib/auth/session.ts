@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { isSupabaseConfigured } from '@/lib/env';
-import { createClient } from '@/lib/supabase/server';
+import { createSupabaseClient } from '@/lib/supabase/createSupabaseClient';
 
 export type SessionRole = 'admin' | 'member';
 
@@ -19,7 +19,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     return null;
   }
 
-  const supabase = await createClient();
+  const supabase = await createSupabaseClient();
 
   const {
     data: { user },
@@ -53,21 +53,23 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   };
 }
 
+/** Signed in as anyone. Throws when nobody is signed in. */
 export async function requireUser(): Promise<SessionUser> {
   const user = await getSessionUser();
 
   if (user === null) {
-    throw new Error('Not authorised');
+    throw new Error('Not signed in');
   }
 
   return user;
 }
 
-export async function requireRole(role: SessionRole): Promise<SessionUser> {
+/** Signed in as an admin. Throws separately for signed-out and wrong-role. */
+export async function requireAdmin(): Promise<SessionUser> {
   const user = await requireUser();
 
-  if (user.role !== role) {
-    throw new Error('Not authorised');
+  if (user.role !== 'admin') {
+    throw new Error('Requires the admin role');
   }
 
   return user;

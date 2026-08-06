@@ -1,7 +1,7 @@
 import 'server-only';
 
-import { requireRole } from '@/lib/supabase/auth';
-import { createClient } from '@/lib/supabase/server';
+import { requireAdmin } from '@/lib/auth/session';
+import { createSupabaseClient } from '@/lib/supabase/createSupabaseClient';
 import { type Database } from '@/types/database.types';
 
 import { USER_ROLES } from '../data/constants';
@@ -38,9 +38,9 @@ function toUser(row: ProfileRow): User {
 
 // The friendly error; RLS is the wall underneath.
 export async function listUsers(): Promise<User[]> {
-  await requireRole('admin');
+  await requireAdmin();
 
-  const supabase = await createClient();
+  const supabase = await createSupabaseClient();
 
   const { data, error } = await supabase
     .from('profiles')

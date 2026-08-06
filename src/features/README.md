@@ -60,9 +60,10 @@ Revisit if imports ever get genuinely unwieldy.
 ## Rules
 
 - **Features never import other features.** Compose them in `app/`.
-- **Client Components never query Supabase.** They call a server action.
-  Auth is the exception — `signIn`, `signOut` and `onAuthStateChange` run in
-  the browser using `lib/supabase/client.ts`.
+- **Client Components never query Supabase.** They call a server action. There
+  is no exception and no browser client to reach for — the session cookies are
+  `HttpOnly`, so browser JavaScript cannot read them. See
+  [lib/supabase/README.md](../lib/supabase/README.md).
 - **Only `server/` imports the Supabase server client.** Not `components/`,
   not `api/`.
 - **Server actions are public HTTP endpoints.** Anyone can invoke them.

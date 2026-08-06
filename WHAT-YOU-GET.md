@@ -29,7 +29,8 @@ The starting point for every new client project. Item-level detail in
 
 ## Database and backend
 
-- **Supabase** — three clients, safe on a fresh clone with no database.
+- **Supabase** — server client plus session refresh, safe on a fresh clone with
+  no database. Session cookies are `HttpOnly`.
 - **SQL migrations** — versioned files, one promotion path to production.
 - **Query layer** — all database access in one place, never in the UI.
 - **Row-level security** — required on every table.

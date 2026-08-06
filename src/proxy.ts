@@ -1,12 +1,12 @@
 import { type NextRequest } from 'next/server';
 
-import { updateSession } from '@/lib/supabase/proxy';
+import { refreshSession } from '@/lib/supabase/refreshSession';
 
 // The one place for cross-route concerns (session refresh, redirects,
 // headers); each lives in its owning module and is called from here.
 // Named proxy, not middleware: Next 16 renamed the convention.
 export function proxy(request: NextRequest) {
-  return updateSession(request);
+  return refreshSession(request);
 }
 
 export const config = {
