@@ -34,7 +34,9 @@ code goes, and why.
 The rules you will hit most:
 
 - Features never import other features.
-- Only `server/` may import `lib/supabase/` or `lib/auth/`.
+- Only `server/` may import `lib/supabase/` or `lib/auth/` — plus two
+  deliberate carve-outs: `lib/auth` may reach `lib/supabase`, and `src/proxy.ts`
+  may reach `lib/supabase`. Both are in eslint.boundaries.mjs; do not "fix" them.
 - Components call actions, never queries.
 - `data/` holds compile-time literals only.
 - No barrel files. Import the file you want.

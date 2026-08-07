@@ -24,11 +24,11 @@ streaming. That is a rule of HTTP, not a Next.js limitation.
 
 ## The files
 
-| File                      | Export                    | Use it from                                       |
-| ------------------------- | ------------------------- | ------------------------------------------------- |
-| `createSupabaseClient.ts` | `createSupabaseClient()`  | Server Components, Server Actions, Route Handlers |
-| `refreshSession.ts`       | `refreshSession(request)` | `src/proxy.ts` only — nowhere else                |
-| `withHttpOnly.ts`         | `withHttpOnly(options)`   | The two files above                               |
+| File                      | Export                         | Use it from                                       |
+| ------------------------- | ------------------------------ | ------------------------------------------------- |
+| `createSupabaseClient.ts` | `createSupabaseClient()`       | Server Components, Server Actions, Route Handlers |
+| `refreshSession.ts`       | `refreshSession(request)`      | `src/proxy.ts` only — nowhere else                |
+| `hardenSessionCookie.ts`  | `hardenSessionCookie(options)` | The two files above                               |
 
 In practice you want `createSupabaseClient.ts`. `refreshSession.ts` has exactly
 one caller and you will not need to touch it.
@@ -49,7 +49,7 @@ to expose them to JavaScript at all.
 
 Need Realtime subscriptions or direct Storage uploads in a future project? Those
 genuinely require the browser client. Adding it back means dropping `HttpOnly`
-in `withHttpOnly.ts` — a deliberate security decision, made once, in writing.
+in `hardenSessionCookie.ts` — a deliberate security decision, made once, in writing.
 For everything else, use a Server Action.
 
 ## Why `createSupabaseClient.ts` swallows an error

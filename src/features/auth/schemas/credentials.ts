@@ -11,7 +11,10 @@ export const signInSchema = z.object({ email, password });
 export type SignInInput = z.infer<typeof signInSchema>;
 
 export const signUpSchema = z.object({
-  fullName: z.string().trim().min(2, 'Enter your full name'),
+  // max mirrors the check constraint on profiles.full_name. The app is not the
+  // only writer — signup is open over REST with the anon key, and the trigger
+  // copies raw_user_meta_data verbatim — so the database bound is the real one.
+  fullName: z.string().trim().min(2, 'Enter your full name').max(100, 'Name is too long'),
   email,
   password,
 });

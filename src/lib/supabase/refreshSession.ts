@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { clientEnv, isSupabaseConfigured } from '@/lib/env';
-import { withHttpOnly } from '@/lib/supabase/withHttpOnly';
+import { hardenSessionCookie } from '@/lib/supabase/hardenSessionCookie';
 import { type Database } from '@/types/database.types';
 
 // In production, unconfigured is a broken deploy — without this line its only
@@ -42,7 +42,7 @@ export async function refreshSession(request: NextRequest) {
           response = NextResponse.next({ request });
 
           cookiesToSet.forEach(({ name, value, options }) => {
-            response.cookies.set(name, value, withHttpOnly(options));
+            response.cookies.set(name, value, hardenSessionCookie(options));
           });
 
           // no-store/no-cache. A response carrying a Set-Cookie for one user's

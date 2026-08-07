@@ -55,7 +55,7 @@ Source: App Build Guard Rails.
       Windows Docker; `schema_paths` on for declarative schemas)
 - [x] Create `supabase/migrations/` — first migration generated from
       `supabase/schemas/users.sql` via `pnpm db:diff`, never hand-written
-- [x] Add `lib/supabase/withHttpOnly.ts` — `HttpOnly` on the session cookies.
+- [x] Add `lib/supabase/hardenSessionCookie.ts` — `HttpOnly` on the session cookies.
       Replaced `lib/supabase/client.ts`, which was never imported; see 18a.
 - [x] Add `lib/supabase/createSupabaseClient.ts`
 - [x] Add `lib/supabase/refreshSession.ts` (was `proxy.ts` — renamed so it does
@@ -128,6 +128,12 @@ Source: App Build Guard Rails.
 - [ ] Behavioural test that `authenticated` cannot execute `is_admin()`, in
       verify-reset-db.mjs. The diff tool dropped that revoke and only a human
       reading the migration caught it — see docs/supabase-diff-caveats.md
+- [x] CI check: schema files must match migrations (`pnpm check:schema-matches-migrations`,
+      job `db-checks / Schema matches migrations`). Proved by adding a policy to the schema
+      without diffing and watching it go red. Previously every gate keyed off
+      changed migration files, so an undiffed schema edit fast-passed.
+- [ ] Make `db-checks / Schema matches migrations` a required status check alongside
+      `db-checks / Verify`
 - [ ] Add migration file naming/format check
 - [ ] Add check for unpushed migration candidates
 - [ ] Add PR policy workflow (title, labels, size)
@@ -395,7 +401,7 @@ rotation; RLS, so even a valid stolen token only returns that user's rows.
 
 Done:
 
-- [x] Set auth cookies `HttpOnly` via `lib/supabase/withHttpOnly.ts`. The
+- [x] Set auth cookies `HttpOnly` via `lib/supabase/hardenSessionCookie.ts`. The
       browser now refuses to expose them to JavaScript — `document.cookie`
       returns nothing and XSS cannot steal a session.
 - [x] Deleted `lib/supabase/client.ts`. It was never imported, and keeping it
@@ -414,7 +420,7 @@ Still open:
       `document.cookie` in devtools shows no `sb-*` entry while the session
       still works. Blocked on Docker being up.
 - [ ] Add a lint rule or canary that fails if `createBrowserClient` is
-      reintroduced without also removing `withHttpOnly` — right now the two
+      reintroduced without also removing `hardenSessionCookie` — right now the two
       decisions are only linked by prose.
 
 ## 19. Sensitive data exposure
@@ -546,6 +552,10 @@ until a client project needs them.
 - [ ] Document auth redirect URL config per environment (needed at deploy)
 - [x] Set session expiry — `inactivity_timeout = "720h"` (30 days). Without it
       a session never expires. See docs/how-auth-works.md section 5.
+- [ ] Set the recovery email template in the hosted dashboard (Authentication >
+      Email Templates > Reset Password) to match supabase/templates/recovery.html.
+      Until then password reset is broken in production, exactly as it was
+      locally — config.toml is local-only
 - [ ] Set the same 30-day inactivity timeout in the hosted project's dashboard
       until `supabase config push` is wired up — config.toml is local-only
 - [ ] Test the full flows in the browser after `db:reset` regenerates

@@ -26,7 +26,8 @@
     "check:db-migrations": "node scripts/db/check-db-migrations.mjs",
     "check:db-push-candidate": "node scripts/db/check-db-push-candidate.mjs",
     "check:rls": "node scripts/db/check-rls.mjs",
-    "verify:db-reset": "node scripts/db/verify-reset-db.mjs"
+    "verify:db-reset": "node scripts/db/verify-reset-db.mjs",
+    "check:schema-matches-migrations": "node scripts/db/check-schema-matches-migrations.mjs"
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx,mjs,cjs}": [

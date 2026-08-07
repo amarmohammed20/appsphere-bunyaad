@@ -1,0 +1,29 @@
+<!--
+  The default GoTrue template links {{ .ConfirmationURL }}, which points at
+  Supabase's own /auth/v1/verify. GoTrue consumes the token there and redirects
+  carrying ?code= (PKCE), which src/features/auth/api/confirm.ts does not
+  handle — so the reset silently lands on /sign-in and the password can never
+  be changed.
+
+  {{ .TokenHash }} sends the token straight to our route instead. It is also
+  stateless: requesting the reset on a laptop and opening the email on a phone
+  works, which the PKCE code exchange cannot do because the code verifier
+  cookie only exists in the browser that made the request.
+
+  This must be set in the hosted project too — Authentication > Email Templates
+  > Reset Password — until `supabase config push` is wired up. config.toml is
+  local-only. See TODO section 23.
+-->
+<h2>Reset your password</h2>
+
+<p>Click the link below to choose a new password. It expires in one hour.</p>
+
+<p>
+  <a
+    href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/update-password"
+  >
+    Reset password
+  </a>
+</p>
+
+<p>If you did not request this, you can ignore this email.</p>

@@ -146,9 +146,20 @@ has to exist there. A clone of this template has all of it.
 
 ## The DB checks workflow
 
+It has **two** jobs, so there are two required status checks:
+
+| Status check                            | Proves                                                      |
+| --------------------------------------- | ----------------------------------------------------------- |
+| `db-checks / Verify`                    | migrations align with the hosted project and replay cleanly |
+| `db-checks / Schema matches migrations` | `supabase/schemas/` matches `supabase/migrations/`          |
+
+Both must be added. `Verify` alone is not enough: every gate inside it keys off
+changed files under `supabase/migrations/`, so editing a schema file and
+forgetting `pnpm db:diff` fast-passes it. `Schema drift` watches the schema
+files themselves and needs no secrets.
+
 `db-checks-reusable.yml` is a second reusable workflow, same pattern: the
-caller is `db-checks.yml`, the required status check is **`db-checks / Verify`**,
-and client repos reference it with:
+caller is `db-checks.yml`, and client repos reference it with:
 
 ```yaml
 jobs:

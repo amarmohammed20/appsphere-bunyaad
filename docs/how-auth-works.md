@@ -233,7 +233,7 @@ There is deliberately no browser client. `createBrowserClient` reads and writes
 `document.cookie`, which requires the session cookies to be visible to
 JavaScript. Nothing here needs that: every Supabase call goes through a Server
 Action or a Server Component. So the cookies are written `HttpOnly` instead —
-see `lib/supabase/withHttpOnly.ts` — and an XSS bug cannot read them.
+see `lib/supabase/hardenSessionCookie.ts` — and an XSS bug cannot read them.
 
 Adding a Client Component that talks to Supabase directly means reversing that
 trade. Prefer a Server Action. If a project genuinely needs the browser client
@@ -421,7 +421,7 @@ guarantee; the first two are ergonomics.
 | `src/lib/supabase/README.md`               | Why there is more than one client               |
 | `src/lib/supabase/refreshSession.ts`       | Session refresh                                 |
 | `src/lib/supabase/createSupabaseClient.ts` | Client for pages and Server Actions             |
-| `src/lib/supabase/withHttpOnly.ts`         | `HttpOnly` on the session cookies               |
+| `src/lib/supabase/hardenSessionCookie.ts`  | `HttpOnly` on the session cookies               |
 | `src/lib/auth/session.ts`                  | `getSessionUser`, `requireUser`, `requireAdmin` |
 | `src/features/auth/`                       | Sign-in, sign-up, reset flows                   |
 | `supabase/schemas/profiles.sql`            | Table, RLS policies, triggers                   |

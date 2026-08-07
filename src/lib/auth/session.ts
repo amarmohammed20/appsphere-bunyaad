@@ -42,6 +42,16 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     .maybeSingle();
 
   if (profile === null || (profile.role !== 'admin' && profile.role !== 'member')) {
+    // Same reason as the log above: a valid session with no usable profile row
+    // presents as "signed out everywhere" with nothing to search for. Returning
+    // null rather than throwing keeps one broken row from taking down the app,
+    // but it must not be silent.
+    console.error('getSessionUser found no usable profile', {
+      userId: user.id,
+      profileMissing: profile === null,
+      role: profile?.role,
+    });
+
     return null;
   }
 

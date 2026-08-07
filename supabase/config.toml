@@ -148,9 +148,15 @@ max_indexes = 5
 enabled = true
 # The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
 # in emails.
-site_url = "http://127.0.0.1:3000"
+# Every auth email link is built from this — see supabase/templates/recovery.html.
+# `localhost`, because that is what `pnpm dev` prints and what people paste into
+# a browser; a session cookie set on 127.0.0.1 is not sent to localhost.
+# In production this is the hosted dashboard's Site URL, not this file.
+site_url = "http://localhost:3000"
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["https://127.0.0.1:3000"]
+# The default here was `https://127.0.0.1:3000`, which matched nothing: the local
+# site is http, not https.
+additional_redirect_urls = ["http://127.0.0.1:3000"]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to the local API URL (http://127.0.0.1:<port>/auth/v1).
@@ -224,6 +230,15 @@ otp_expiry = 3600
 # pass = "env(SENDGRID_API_KEY)"
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
+
+# Required, not cosmetic. The default template links {{ .ConfirmationURL }},
+# which routes through Supabase's /auth/v1/verify and arrives back as ?code=.
+# src/features/auth/api/confirm.ts expects ?token_hash=, so with the default
+# template every password reset lands on /sign-in and the password can never be
+# changed. See supabase/templates/recovery.html.
+[auth.email.template.recovery]
+subject = "Reset your password"
+content_path = "./supabase/templates/recovery.html"
 
 # Uncomment to customize email template
 # [auth.email.template.invite]

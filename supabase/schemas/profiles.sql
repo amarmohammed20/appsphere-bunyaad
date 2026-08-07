@@ -2,7 +2,10 @@
 
 create table public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
-  full_name text not null,
+  -- Bounded here, not only in Zod: signup is open over REST with the anon key
+  -- and handle_new_user copies raw_user_meta_data verbatim, so a 10MB name can
+  -- reach this table without passing the app. Read on every request.
+  full_name text not null check (char_length(full_name) between 1 and 100),
   email text not null unique,
   role text not null default 'member' check (role in ('admin', 'member')),
   created_at timestamptz not null default now(),
@@ -111,7 +114,12 @@ begin
   insert into public.profiles (id, full_name, email)
   values (
     new.id,
-    coalesce(nullif(new.raw_user_meta_data ->> 'full_name', ''), split_part(new.email, '@', 1)),
+    -- left() rather than letting the check constraint reject: an oversized name
+    -- from a direct REST signup should be trimmed, not turned into a 500.
+    left(
+      coalesce(nullif(new.raw_user_meta_data ->> 'full_name', ''), split_part(new.email, '@', 1)),
+      100
+    ),
     new.email
   )
   on conflict (id) do nothing;

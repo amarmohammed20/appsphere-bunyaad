@@ -1,6 +1,5 @@
 'use server';
 
-import { headers } from 'next/headers';
 import { z } from 'zod';
 
 import { authLabels } from '../data/labels';
@@ -19,7 +18,11 @@ export async function requestPasswordReset(formData: FormData): Promise<AuthResu
     };
   }
 
-  const origin = (await headers()).get('origin') ?? '';
-
-  return sendPasswordReset(parsed.data.email, `${origin}/auth/confirm?next=/update-password`);
+  // No redirect base is built here. The link is assembled by the recovery email
+  // template from `{{ .SiteURL }}` — one configured value per environment,
+  // rather than the request's Origin header, which is attacker-influenced in
+  // principle and empty in practice for some clients.
+  // Awaited rather than returned directly: a Server Action must be async, and
+  // there is no other await left in this function.
+  return await sendPasswordReset(parsed.data.email);
 }

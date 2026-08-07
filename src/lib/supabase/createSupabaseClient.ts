@@ -5,7 +5,7 @@ import { cookies } from 'next/headers';
 export { type EmailOtpType } from '@supabase/supabase-js';
 
 import { clientEnv, assertSupabaseConfigured } from '@/lib/env';
-import { withHttpOnly } from '@/lib/supabase/withHttpOnly';
+import { hardenSessionCookie } from '@/lib/supabase/hardenSessionCookie';
 import { type Database } from '@/types/database.types';
 
 type CookieStore = Awaited<ReturnType<typeof cookies>>;
@@ -37,7 +37,7 @@ export async function createSupabaseClient() {
 function writeCookiesWhereAllowed(store: CookieStore, cookiesToSet: CookiesToSet) {
   try {
     cookiesToSet.forEach(({ name, value, options }) => {
-      store.set(name, value, withHttpOnly(options));
+      store.set(name, value, hardenSessionCookie(options));
     });
   } catch {
     // Server Component. refreshSession already wrote these, so nothing is lost.
