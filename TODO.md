@@ -51,15 +51,26 @@ Source: App Build Guard Rails.
 
 ## 5. Environments and Supabase
 
-- [ ] Run `supabase init` and commit `config.toml`
-- [ ] Create `supabase/migrations/` folder
-- [x] Add `lib/supabase/client.ts`
-- [x] Add `lib/supabase/server.ts`
-- [x] Add `lib/supabase/proxy.ts`
+- [x] Run `supabase init` and commit `config.toml` (analytics off — flaky on
+      Windows Docker; `schema_paths` on for declarative schemas)
+- [x] Create `supabase/migrations/` — first migration generated from
+      `supabase/schemas/users.sql` via `pnpm db:diff`, never hand-written
+- [x] Add `lib/supabase/hardenSessionCookie.ts` — `HttpOnly` on the session cookies.
+      Replaced `lib/supabase/client.ts`, which was never imported; see 18a.
+- [x] Add `lib/supabase/createSupabaseClient.ts`
+- [x] Add `lib/supabase/refreshSession.ts` (was `proxy.ts` — renamed so it does
+      not collide with the Next convention file `src/proxy.ts`)
+- [x] Add `lib/supabase/README.md` answering "why more than one client?"
 - [x] Add `proxy.ts` for session refresh (Next 16 renamed middleware to proxy)
-- [ ] Add `src/@types/database.types.ts` placeholder
-- [ ] Add script to generate Supabase types
-- [ ] Add DB scripts: start, stop, reset, diff, push, pull
+- [x] Generate `src/types/database.types.ts` from the real schema (`pnpm db:types`)
+- [x] Add script to generate Supabase types
+- [x] Add DB scripts: start, stop, reset, diff, push, types
+- [x] Add `features/users` CRUD as the DB-backed reference — create, read,
+      role update, delete all verified in the browser against local Postgres
+- [ ] Replace demo-public RLS policies with authenticated ones when auth lands
+- [x] Deleted `features/contact` — `users` is the single reference (full CRUD
+      plus an api/ handler; contact also queried a table no migration created).
+      Canary, features README and CLAUDE.md repointed.
 - [x] Add `.env.example` with all required keys
 - [x] Add `lib/env.ts` — validates only when Supabase is configured, so a fresh clone runs
 - [ ] Document three-environment setup (local, staging, production)
@@ -106,11 +117,23 @@ Source: App Build Guard Rails.
 - [ ] Build-time env validation, so `next build` in CI proves the app cannot be
       deployed with missing Supabase config
 - [ ] Prove it end to end: open a throwaway repo that calls `@v1` and watch it run
-- [ ] Add PR DB migrations pipeline — apply migrations against a shadow DB so
-      a broken one fails before it reaches an environment
-- [ ] CI check: fail a migration that creates a table without enabling RLS.
-      Every client repo inherits this template, and a public table is the
-      single most costly Supabase mistake
+- [x] Add PR DB migrations pipeline — ported from itc as a reusable workflow
+      (`db-checks / Verify`): alignment vs the hosted project, full rebuild
+      from migrations + seed in CI, smoke checks, dry-run push, and red until
+      production is actually pushed
+- [x] CI check: fail a migration that creates a table without enabling RLS
+      (`pnpm check:rls`, verified with a deliberately leaky migration)
+- [ ] Add repo secrets SUPABASE_ACCESS_TOKEN + SUPABASE_PROJECT_REF, then
+      prove db-checks end to end on a real PR
+- [ ] Behavioural test that `authenticated` cannot execute `is_admin()`, in
+      verify-reset-db.mjs. The diff tool dropped that revoke and only a human
+      reading the migration caught it — see docs/supabase-diff-caveats.md
+- [x] CI check: schema files must match migrations (`pnpm check:schema-matches-migrations`,
+      job `db-checks / Schema matches migrations`). Proved by adding a policy to the schema
+      without diffing and watching it go red. Previously every gate keyed off
+      changed migration files, so an undiffed schema edit fast-passed.
+- [ ] Make `db-checks / Schema matches migrations` a required status check alongside
+      `db-checks / Verify`
 - [ ] Add migration file naming/format check
 - [ ] Add check for unpushed migration candidates
 - [ ] Add PR policy workflow (title, labels, size)
@@ -167,13 +190,14 @@ Decided: **feature-first**. Reasoning in
 - [x] Document the required feature shape in `src/features/README.md`
 - [x] No `helpers/`, no `utils/`, no `data/` at top level — one home per concept
 - [x] Add Zod
-- [x] Add `features/contact/` as the reference implementation
+- [x] Add a reference feature — was `contact/`, replaced by `users/` (full
+      CRUD against a real table) once the database existed
 - [ ] Add route groups `(marketing)` and `(app)` once there are real pages
 - [x] Enforce with `eslint-plugin-boundaries`, deny-by-default
 - [x] Rule: features never import other features
 - [x] Rule: only server/ may import lib/supabase
 - [x] No barrel files — direct imports (see src/features/README.md)
-- [ ] Document naming conventions (kebab-case dirs, PascalCase components)
+- [x] Document naming conventions — CLAUDE.md "Naming"
 - [x] Close fail-open holes: no-unknown-files, no-unknown-dependencies, external SDK
 - [x] Add `test:boundaries` canary proving the rules actually fire
 - [x] Run `test:boundaries` in CI only. It was in pre-push until CI existed;
@@ -206,23 +230,23 @@ if adding a folder starts to feel heavy.
 
 ## 11. AI context files
 
-- [ ] Write `AGENTS.md` with stack and versions
-- [ ] `AGENTS.md`: domain and folder map
-- [ ] `AGENTS.md`: naming conventions
-- [ ] `AGENTS.md`: quality gate commands
-- [ ] `AGENTS.md`: do-not-touch areas
-- [ ] `AGENTS.md`: domain-specific rules section
-- [ ] `AGENTS.md`: product knowledge section
-- [ ] Add `CLAUDE.md`
+Decided: **Claude Code only.** One agent file, no cross-tool pointers. Skills,
+subagents and hooks are Claude-specific and have no equivalent elsewhere, so
+supporting a second tool would only ever cover half of this. If another tool is
+adopted, give it a pointer to `CLAUDE.md` rather than a copy.
+
+- [x] Write `CLAUDE.md` with stack and versions
+- [x] `CLAUDE.md`: quality gate commands
+- [x] `CLAUDE.md`: do-not-touch areas
+- [x] `CLAUDE.md`: structure rules, pointing at `src/features/README.md`
+- [x] `CLAUDE.md`: naming conventions — file named after its export, named
+      exports only, no adjective repeating the folder
+- [ ] `CLAUDE.md`: product knowledge section, per project
 - [ ] Add `.claude/settings.json`
-- [ ] Add `.cursor/rules/`
-- [ ] Add `.agents/skills/` review skills
-- [ ] Decide sync mechanism for skills files across repos
-- [ ] Make one source of truth for agent rules, with thin pointers for each tool
-- [ ] Verify setup works in Claude Code
-- [ ] Verify setup works in Cursor
-- [ ] Verify setup works in Codex
-- [ ] Document which file each tool reads
+- [ ] Decide sync mechanism for `.claude/` across repos
+- [ ] Verify an agent actually follows it — give Claude a task that tempts it
+      into a violation and see whether it self-corrects
+- [ ] `.cursor/BUGBOT.md` if section 10 goes ahead — BugBot is Cursor-based
 
 ## 11a. Claude skills
 
@@ -343,7 +367,61 @@ if adding a folder starts to feel heavy.
 - [ ] Configure CORS in `next.config.ts`
 - [ ] Add rate limiting to API routes
 - [ ] Add generic API error response helper
-- [ ] Add security headers (CSP, X-Frame-Options)
+- [x] Add security headers — `next.config.ts` sets `X-Content-Type-Options`,
+      `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy` and HSTS
+- [ ] Add Content-Security-Policy. Deliberately not done with the headers above:
+      a useful CSP needs a per-request nonce, which means generating one in
+      `src/proxy.ts` and putting it on the request headers so Next can stamp its
+      own inline scripts. A constant CSP would need `'unsafe-inline'`, which
+      permits exactly the injection it claims to stop. Its own change, verified
+      in a browser.
+
+### 18a. Close the XSS session-theft vector
+
+Who can read the auth cookies, and whether we can stop them:
+
+| Attack                    | How                                          | Stoppable?                |
+| ------------------------- | -------------------------------------------- | ------------------------- |
+| XSS                       | injected JS reads `document.cookie`          | **Yes — this is the one** |
+| Malicious npm package     | ships into the bundle, then behaves like XSS | Partly                    |
+| Browser extension         | reads cookies via extension APIs             | No                        |
+| Malware on the machine    | reads the browser's cookie file from disk    | No                        |
+| Network sniffing          | intercepts the request                       | Yes — HTTPS               |
+| Physical access, unlocked | opens devtools                               | No                        |
+
+Extensions and malware run at higher privilege than the page. There is no code
+that detects or blocks them — the controls are policy (extension allowlist),
+not application code. That is exactly why short expiry and refresh rotation
+exist: theft is partly unpreventable, so the damage is capped instead.
+
+Already covering this: no XSS injection points (zero `dangerouslySetInnerHTML`,
+`innerHTML`, `eval`); supply-chain hardening (`minimumReleaseAge`,
+`blockExoticSubdeps`, exact pinning, CI secret scan); 1h token expiry with
+rotation; RLS, so even a valid stolen token only returns that user's rows.
+
+Done:
+
+- [x] Set auth cookies `HttpOnly` via `lib/supabase/hardenSessionCookie.ts`. The
+      browser now refuses to expose them to JavaScript — `document.cookie`
+      returns nothing and XSS cannot steal a session.
+- [x] Deleted `lib/supabase/client.ts`. It was never imported, and keeping it
+      would have meant keeping the cookies JS-readable for code that did not
+      exist. A project needing Realtime or direct Storage uploads reintroduces
+      it deliberately, dropping `HttpOnly` as a recorded decision.
+- [x] Copy the `headers` argument of `setAll` onto the response in
+      `refreshSession.ts` — `Cache-Control: no-store` and friends. Without it a
+      CDN may cache a response carrying one user's `Set-Cookie` and replay it to
+      another. The SDK has passed these since @supabase/ssr added the argument;
+      we were dropping them.
+
+Still open:
+
+- [ ] Verify in a browser after `db:reset`: sign in, then confirm
+      `document.cookie` in devtools shows no `sb-*` entry while the session
+      still works. Blocked on Docker being up.
+- [ ] Add a lint rule or canary that fails if `createBrowserClient` is
+      reintroduced without also removing `hardenSessionCookie` — right now the two
+      decisions are only linked by prose.
 
 ## 19. Sensitive data exposure
 
@@ -389,6 +467,31 @@ if adding a folder starts to feel heavy.
 
 ## 21. Data layer
 
+Declined: **wrapping the Supabase SDK in a generic `Database` interface** so the
+app could survive a move off Supabase. Recorded here because it sounds prudent
+and will be re-proposed otherwise.
+
+- The security model cannot be wrapped. RLS policies, `auth.uid()`, the
+  `security definer` functions and the `protect_last_admin` trigger live in
+  Postgres and are enforced there. An application-layer interface cannot move
+  them, so the part most worth protecting is the part least able to be.
+- The abstraction leaks immediately. Refresh-token rotation, `getUser()`'s
+  network round trip, PKCE, cookie chunking — no vendor-neutral interface has
+  these, so its methods end up named after Supabase's anyway.
+- It does not pay off on the day it is meant to. Leaving Supabase means writing
+  session issuance, refresh rotation and email verification from scratch: a new
+  subsystem, not a swap behind an interface.
+
+What actually limits the blast radius is already in place: Supabase appears in
+`src/features/` at roughly 15 call sites, all inside `server/`, and a boundaries
+rule stops anything else importing the SDK. Changing 15 known places is cheaper
+than maintaining an indirection for years.
+
+Related naming rule (kept): vendor names only at the vendor boundary — see
+CLAUDE.md "Vendor names". `lib/supabase/auth.ts` moved to `lib/auth/session.ts`
+under that rule, with a new `lib-auth` boundaries element so it stays reachable
+only from `server/` and cannot be laundered to a Client Component via `lib`.
+
 - [ ] Decide: Supabase client only, or Prisma alongside it
 - [ ] Add `lib/dbCalls/[entity]/` pattern — all queries live here
 - [ ] Rule: no Supabase calls directly from components
@@ -427,17 +530,75 @@ if adding a folder starts to feel heavy.
 
 ## 23. Authentication
 
-- [ ] Add Supabase Auth setup
-- [ ] Add sign up / sign in / sign out flows
-- [ ] Add password reset flow
-- [ ] Add email confirmation handling
-- [ ] Add OAuth provider example
-- [ ] Add protected route pattern via middleware
-- [ ] Add role/permission checking helper
-- [ ] Add `profiles` table migration
-- [ ] Separate sensitive user data into its own RLS-protected table
-- [ ] Add session handling in server components
-- [ ] Document auth redirect URL config per environment
+Decided: two roles (`admin`/`member`), default member, admins promote via the
+app, no self-change, never demote the last admin. First admin: seeded locally,
+one dashboard flip in production. OAuth/teams/invitations/MFA deliberately out
+until a client project needs them.
+
+- [x] Add Supabase Auth setup
+- [x] Add sign up / sign in / sign out flows
+- [x] Add password reset flow (email lands in Mailpit locally, :54324)
+- [x] Add email link handling — `/auth/confirm` verifies and forwards
+- [ ] Add OAuth provider example — deliberately deferred
+- [x] Add protected route pattern — `requireAdminPage()` redirect guard
+- [x] Add role checking helpers — `requireUser` / `requireAdmin` in lib/auth.
+      `requireRole(role)` was dropped: with two roles it only ever meant
+      admin, and `requireRole('member')` would have rejected admins.
+- [x] Add `profiles` table — trigger-created from auth.users, real RLS
+      policies, demo policies gone
+- [ ] Separate sensitive user data into its own RLS-protected table — when
+      there is sensitive data to separate
+- [x] Add session handling in server components — `getSessionUser()`
+- [ ] Document auth redirect URL config per environment (needed at deploy)
+- [x] Set session expiry — `inactivity_timeout = "720h"` (30 days). Without it
+      a session never expires. See docs/how-auth-works.md section 5.
+- [ ] Set the recovery email template in the hosted dashboard (Authentication >
+      Email Templates > Reset Password) to match supabase/templates/recovery.html.
+      Until then password reset is broken in production, exactly as it was
+      locally — config.toml is local-only
+- [ ] Set the same 30-day inactivity timeout in the hosted project's dashboard
+      until `supabase config push` is wired up — config.toml is local-only
+- [ ] Test the full flows in the browser after `db:reset` regenerates
+      everything (sign in as both roles, promote, demote, last-admin rule)
+
+### From the PR #9 external review (2026-08-05)
+
+Fixed: last-admin rule moved into a DB trigger with an advisory lock (was
+app-only and bypassable via REST); anon/authenticated over-grants revoked;
+auth failures now logged in getSessionUser; profiles.email syncs on email
+change; signup trigger idempotent; password minimum aligned at 8 both sides;
+`//evil.com` open redirect closed via lib/toSafeReturnPath; confirm endpoint
+accepts recovery tokens only; is_admin() no longer callable over RPC;
+refresh-before-push removes the stale-page flash; check:rls now catches a
+later `disable row level security`; seeded users have fixed ids; behavioural
+RLS checks added to the smoke script; unused users API, env.server.ts and
+the fields.tsx multi-export file removed.
+
+Declined:
+
+- `isSupabaseConfigured` stays `.some()` — with `.every()`, half-configured
+  env silently runs unconfigured; with `.some()` it fails loudly at startup,
+  which the file already documents as the intent.
+- `toRole` still throws on an unknown role — corruption should stop the
+  page, and adding a role is a deliberate two-file change; revisit as a
+  Postgres enum when roles next change.
+- PasswordStrength stays — bound to the real minimum now; above the minimum
+  it is guidance by design.
+- Shared form primitives stay in features/auth — components/shared is for
+  code used by two or more features; auth is the only consumer today.
+
+Deferred:
+
+- [ ] Seed via supabase.auth.admin.createUser instead of raw auth.users
+      inserts — survives GoTrue schema changes
+- [ ] Hosted auth config under version control (`supabase config push`) and
+      a CI assert that site_url is not localhost in production — the review
+      is right that reset emails redirecting to 127.0.0.1 is the classic
+      launch-day incident
+- [ ] Replace the check:rls regex with a pg_class query against the rebuilt
+      CI database — cannot be fooled; partitioned tables stop false-failing
+- [ ] Map the profiles email-collision case in handle_new_user to a
+      readable signup error
 
 ## 24. Error handling
 
@@ -447,7 +608,7 @@ if adding a folder starts to feel heavy.
 - [ ] Add central error classes
 - [ ] Rule: generic errors to client, full detail to Sentry
 - [ ] Add loading and empty state conventions
-- [ ] Document error handling rules in AGENTS.md
+- [ ] Document error handling rules in CLAUDE.md
 
 ## 25. Multi-domain setup
 
@@ -482,7 +643,7 @@ if adding a folder starts to feel heavy.
 - [ ] Role: release engineer to ship the PR
 - [ ] Add slash commands for each role
 - [ ] Document the end-to-end role sequence for a feature
-- [ ] Keep roles in sync with `AGENTS.md` conventions
+- [ ] Keep roles in sync with `CLAUDE.md` conventions
 
 ## 27. Open decisions
 

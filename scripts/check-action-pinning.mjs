@@ -1,8 +1,5 @@
-// A tag is a label, not a version. Whoever owns the action can repoint `v4` at
-// new code, and it runs in our pipeline with a token, on the next PR, silently.
-// Only a commit SHA names code that cannot change underneath us.
-//
-// A warning here would be decoration — this exits non-zero.
+// A tag can be repointed at new code that then runs in our pipeline with a
+// token; only a commit SHA cannot change underneath us.
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';

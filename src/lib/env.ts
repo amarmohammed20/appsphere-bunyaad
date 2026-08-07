@@ -1,43 +1,55 @@
+// Everything here is `NEXT_PUBLIC_`, which Next inlines into the browser
+// bundle at build time. Assume any value in this file is readable by anyone
+// who opens devtools.
+//
+// A secret — the service role key, an SMTP password, a payment key — must never
+// be added here, even unused: one import of `supabaseEnv` from a Client
+// Component pulls the whole module into the bundle. Secrets belong in a second
+// file that starts with `import 'server-only'`. Server vs client is the only
+// split worth making, and it is the one the ecosystem makes too.
+//
+// Every service's variables live here, not beside the service that uses them.
+// One file is where you look to answer "what does this app need to run", and it
+// is what makes a deploy with a missing variable fail at startup rather than
+// boot half-configured. Add a service as its own named group —
+// `sentryEnvSchema`, `sentryEnv` — so the vendor prefix stays meaningful.
+
 import { z } from 'zod';
 
-const schema = z.object({
+const supabaseEnvSchema = z.object({
   NEXT_PUBLIC_SUPABASE_URL: z.url(),
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
 });
 
-// Read as full literals so Next can inline them — `process.env[key]` would not.
-// A blank line in .env arrives as "", which should mean "not set".
-const values = {
+// Full literals so Next can inline them — `process.env[key]` would not.
+// `|| ''` because a blank line in .env arrives as "" and should mean unset.
+const rawSupabaseEnv = {
   NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL || '',
   NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
 };
 
-/**
- * False on a fresh clone. Anything that opens a database connection must check
- * this first — `lib/supabase/*` throws if the URL and key are empty.
- *
- * Note these are inlined at build time, so a container built without env and
- * given env at runtime will read false in the browser bundle regardless.
- */
-export const isSupabaseConfigured = Object.values(values).some(Boolean);
+// `some`, not `every`: half-configured must count as configured so validation
+// below fails loudly instead of the app silently running unconfigured.
+// Inlined at build time — env added only at runtime reads false in the browser.
+export const isSupabaseConfigured = Object.values(rawSupabaseEnv).some(Boolean);
 
-/** Call before opening a connection, so the error names the cause. */
 export function assertSupabaseConfigured() {
   if (!isSupabaseConfigured) {
     throw new Error('Supabase is not configured. Copy .env.example to .env.local and fill it in.');
   }
 }
 
-function validate() {
-  const result = schema.safeParse(values);
+function parseSupabaseEnv() {
+  const parsed = supabaseEnvSchema.safeParse(rawSupabaseEnv);
 
-  if (!result.success) {
-    const invalid = Object.keys(z.flattenError(result.error).fieldErrors).join(', ');
+  if (!parsed.success) {
+    const invalid = Object.keys(z.flattenError(parsed.error).fieldErrors).join(', ');
     throw new Error(`Invalid environment variables: ${invalid}. See .env.example.`);
   }
 
-  return result.data;
+  return parsed.data;
 }
 
-// Half-configured is a mistake worth failing on. Not configured at all is not.
-export const clientEnv = isSupabaseConfigured ? validate() : values;
+// Unvalidated when Supabase is unconfigured, so a fresh clone and the env-less
+// CI build still run. Every reader is behind assertSupabaseConfigured().
+export const supabaseEnv = isSupabaseConfigured ? parseSupabaseEnv() : rawSupabaseEnv;

@@ -144,6 +144,69 @@ has to exist there. A clone of this template has all of it.
 - Secrets are not inherited. Pass named secrets in the caller job if a run
   needs them — never `secrets: inherit`, which exposes all of them.
 
+## The DB checks workflow
+
+It has **two** jobs, so there are two required status checks:
+
+| Status check                            | Proves                                                      |
+| --------------------------------------- | ----------------------------------------------------------- |
+| `db-checks / Verify`                    | migrations align with the hosted project and replay cleanly |
+| `db-checks / Schema matches migrations` | `supabase/schemas/` matches `supabase/migrations/`          |
+
+Both must be added. `Verify` alone is not enough: every gate inside it keys off
+changed files under `supabase/migrations/`, so editing a schema file and
+forgetting `pnpm db:diff` fast-passes it. `Schema drift` watches the schema
+files themselves and needs no secrets.
+
+`db-checks-reusable.yml` is a second reusable workflow, same pattern: the
+caller is `db-checks.yml`, and client repos reference it with:
+
+```yaml
+jobs:
+  # Job id must stay `db-checks`: branch protection matches "db-checks / Verify".
+  db-checks:
+    if: github.event.pull_request.draft == false
+    uses: amarmohammed20/appsphere-bunyaad/.github/workflows/db-checks-reusable.yml@v1
+    secrets:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+```
+
+What it proves on every pull request, in order:
+
+| Stage                    | Fails when                                                          |
+| ------------------------ | ------------------------------------------------------------------- |
+| Row level security       | Any migration creates a public table without enabling RLS           |
+| Alignment                | Repo and hosted project disagree about migration history            |
+| Rebuild                  | The full history does not replay cleanly on a fresh database        |
+| Smoke checks             | The rebuilt database lacks what migrations plus seed promise        |
+| Dry-run push             | The pending migrations would not apply to the hosted project        |
+| Production push required | Checks pass but production has not been pushed yet — red on purpose |
+
+When no migration files changed, everything after the RLS check is skipped and
+the run finishes in seconds.
+
+The red-on-purpose stage is the deliberate oddity: after `pnpm db:push` the
+workflow is re-run and goes green. Merging is impossible until production
+actually has the migration, which is the point.
+
+It needs two secrets **in each consuming repo's own settings** (Settings →
+Secrets and variables → Actions), holding **that project's** values — a client
+repo compares against its own Supabase project, never bunyaad's:
+
+| Secret                  | Where it comes from                                  |
+| ----------------------- | ---------------------------------------------------- |
+| `SUPABASE_ACCESS_TOKEN` | supabase.com/dashboard/account/tokens — generate one |
+| `SUPABASE_PROJECT_REF`  | the id in the project's dashboard URL                |
+
+Secrets are never shared through the reusable workflow: the caller passes them
+by name, so a repo that has not configured them fails with a clear error
+rather than silently comparing against the wrong database.
+
+The consuming repo also needs `supabase/migrations/`, the `db:*` and
+`check:db-*`/`check:rls`/`verify:db-reset` scripts, and `scripts/db/` — all
+present in this template.
+
 ## If bunyaad is ever renamed
 
 `uses:` follows GitHub's repository redirects, so consuming repos keep working.

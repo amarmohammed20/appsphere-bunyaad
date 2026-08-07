@@ -76,7 +76,8 @@ const eslintConfig = defineConfig([
   // Must come last — disables every rule that would conflict with Prettier.
   prettier,
 
-  globalIgnores(['.next/**', 'out/**', 'build/**', 'next-env.d.ts']),
+  // supabase/.temp holds runtime files the CLI generates; not our code.
+  globalIgnores(['.next/**', 'out/**', 'build/**', 'next-env.d.ts', 'supabase/.temp/**']),
 ]);
 
 export default eslintConfig;

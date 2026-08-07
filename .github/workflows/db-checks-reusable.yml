@@ -1,0 +1,227 @@
+# Every repo built from bunyaad calls this file rather than copying it, so a
+# fix here reaches all of them. See docs/reusable-workflows.md.
+#
+# What it proves, in order:
+#   0. supabase/schemas/ and supabase/migrations/ have not diverged.
+#   1. No table is created without row level security.
+#   2. The repo's migration history matches the hosted project's, or differs
+#      only by new migrations at the tail of this PR.
+#   3. The whole history replays cleanly on a fresh database, and the result
+#      contains what migrations plus seed promise.
+#   4. A dry-run shows exactly what `db push` would do to production.
+#   5. The PR stays red until production has actually been pushed.
+name: DB Checks (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: Node version to run the checks on.
+        type: string
+        default: '22'
+    secrets:
+      SUPABASE_ACCESS_TOKEN:
+        description: Personal access token from supabase.com/dashboard/account/tokens.
+        required: true
+      SUPABASE_PROJECT_REF:
+        description: Reference ID of the hosted project to compare against.
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  # Separate from `verify` on purpose. Every gate in that job keys off changed
+  # files under supabase/migrations/, so editing a schema file and forgetting
+  # `pnpm db:diff` fast-passes the whole thing — the declared source of truth
+  # reaches no database. This job watches the schema files themselves, and
+  # needs no secrets, so it also runs on forks.
+  schema-matches-migrations:
+    name: Schema matches migrations
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed database files
+        id: changed
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          files="$(git diff --name-only "$BASE_SHA"...HEAD -- 'supabase/schemas/*.sql' 'supabase/migrations/*.sql')"
+
+          if [ -n "$files" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            printf 'Changed database files:\n%s\n' "$files"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No schema or migration files changed. Nothing can have drifted."
+          fi
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        if: steps.changed.outputs.changed == 'true'
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        if: steps.changed.outputs.changed == 'true'
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: pnpm
+
+      - name: Install dependencies
+        if: steps.changed.outputs.changed == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Start local Supabase
+        if: steps.changed.outputs.changed == 'true'
+        run: pnpm exec supabase start --ignore-health-check
+
+      # Rebuilds from migrations alone. Whatever the schema files then still
+      # want to add is a change nobody generated a migration for.
+      - name: Rebuild from migrations
+        if: steps.changed.outputs.changed == 'true'
+        run: pnpm db:reset
+
+      - name: Schema files match migrations
+        if: steps.changed.outputs.changed == 'true'
+        run: pnpm check:schema-matches-migrations
+
+      - name: Stop local Supabase
+        if: always() && steps.changed.outputs.changed == 'true'
+        run: pnpm db:stop
+
+  verify:
+    # Branch protection matches on "<caller job id> / <this name>", so callers
+    # must keep their job id as `db-checks`.
+    name: Verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The changed-files diff below needs history beyond the PR.
+          fetch-depth: 0
+
+      - name: Detect changed migration files
+        id: changed-migrations
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          files="$(git diff --name-only "$BASE_SHA"...HEAD -- 'supabase/migrations/*.sql')"
+
+          {
+            echo "files<<EOF"
+            printf '%s\n' "$files"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+          if [ -n "$files" ]; then
+            echo "has_migration_changes=true" >> "$GITHUB_OUTPUT"
+            echo "Changed migration files:"
+            printf '%s\n' "$files"
+          else
+            echo "has_migration_changes=false" >> "$GITHUB_OUTPUT"
+            echo "No migration files changed in this PR. Skipping the migration alignment check."
+          fi
+
+      # Needs nothing but the filesystem, so it runs before install and fails
+      # in seconds when a table is missing row level security.
+      - name: Tables have row level security
+        run: node scripts/db/check-rls.mjs
+
+      # Reads the pinned version from packageManager in package.json.
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: List local and remote migrations
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: pnpm db:list
+
+      - name: Fast-pass when no migration files changed
+        if: steps.changed-migrations.outputs.has_migration_changes != 'true'
+        run: echo "No migration files changed in this PR. The migration listing sanity check passed, so the remaining migration workflow is skipped."
+
+      - name: Check Supabase migration alignment
+        id: migration-check
+        if: steps.changed-migrations.outputs.has_migration_changes == 'true'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          CHANGED_MIGRATION_FILES: ${{ steps.changed-migrations.outputs.files }}
+        run: pnpm check:db-migrations
+        continue-on-error: true
+
+      - name: Fast-pass when local and remote are already aligned
+        if: |
+          steps.changed-migrations.outputs.has_migration_changes == 'true' &&
+          steps.migration-check.outputs.status == 'aligned'
+        run: echo "Local and remote migration history are already aligned. No rebuild or dry-push checks are needed for this PR."
+
+      - name: Start local Supabase
+        if: |
+          steps.changed-migrations.outputs.has_migration_changes == 'true' &&
+          steps.migration-check.outputs.status == 'local_only_tail_valid'
+        run: pnpm exec supabase start --ignore-health-check
+
+      - name: Rebuild local Supabase from migrations and seeds
+        if: |
+          steps.changed-migrations.outputs.has_migration_changes == 'true' &&
+          steps.migration-check.outputs.status == 'local_only_tail_valid'
+        run: pnpm db:reset
+
+      - name: Run reset smoke checks
+        if: |
+          steps.changed-migrations.outputs.has_migration_changes == 'true' &&
+          steps.migration-check.outputs.status == 'local_only_tail_valid'
+        run: pnpm verify:db-reset
+
+      - name: Validate dry-push candidate
+        if: |
+          steps.changed-migrations.outputs.has_migration_changes == 'true' &&
+          steps.migration-check.outputs.status == 'local_only_tail_valid'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          CHANGED_MIGRATION_FILES: ${{ steps.changed-migrations.outputs.files }}
+        run: pnpm check:db-push-candidate
+
+      - name: Dry-run push pending migrations
+        if: |
+          steps.changed-migrations.outputs.has_migration_changes == 'true' &&
+          steps.migration-check.outputs.status == 'local_only_tail_valid'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: pnpm db:push:dry
+
+      - name: Require production push before merge
+        if: |
+          steps.changed-migrations.outputs.has_migration_changes == 'true' &&
+          steps.migration-check.outputs.pending_push_required == 'true'
+        run: |
+          echo "::error::Migration checks passed locally, but production is still behind."
+          echo "::error::Run \`pnpm db:push:dry\` and then \`pnpm db:push\`, then rerun this workflow."
+          echo "::error::This PR remains blocked until \`pnpm db:list\` shows every migration in both local and remote."
+          exit 1
+
+      - name: Fail on non-recoverable migration mismatch
+        if: |
+          steps.changed-migrations.outputs.has_migration_changes == 'true' &&
+          steps.migration-check.outputs.status != 'aligned' &&
+          steps.migration-check.outputs.status != 'local_only_tail_valid'
+        run: exit 1
+
+      - name: Stop local Supabase
+        if: |
+          always() &&
+          steps.changed-migrations.outputs.has_migration_changes == 'true' &&
+          steps.migration-check.outputs.status == 'local_only_tail_valid'
+        run: pnpm db:stop

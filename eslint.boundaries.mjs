@@ -7,6 +7,7 @@ const ACTIONS = 'feature-action';
 const HTTP_HANDLERS = 'feature-api';
 const SERVER = 'feature-server';
 const SUPABASE = 'lib-supabase';
+const AUTH = 'lib-auth';
 
 /** Feature code that performs no IO — safe for anything in the same feature. */
 const PURE_FEATURE_CODE = ['feature-schema', 'feature-data', 'feature-utils', 'feature-root'];
@@ -46,6 +47,8 @@ const elements = [
   { type: 'shared-hook', pattern: 'src/hooks' },
   { type: 'shared-types', pattern: 'src/types' },
   { type: SUPABASE, pattern: 'src/lib/supabase' },
+  { type: AUTH, pattern: 'src/lib/auth' },
+  // Must stay last — it matches everything under src/lib.
   { type: 'lib', pattern: 'src/lib' },
 ];
 
@@ -124,16 +127,17 @@ export const boundariesConfig = {
 
           allow(['shared-component', 'shared-ui', 'shared-hook'], SHARED),
 
-          // `lib` deliberately cannot reach `lib-supabase`. The plugin checks
-          // direct imports only, so a lib helper importing Supabase would
-          // launder it to any component that imports the helper.
+          // `lib` deliberately cannot reach `lib-supabase` or `lib-auth`. The
+          // plugin checks direct imports only, so a lib helper importing either
+          // would launder it to any component that imports the helper.
           allow('lib', ['lib', 'shared-types']),
           allow(SUPABASE, [SUPABASE, 'lib', 'shared-types']),
+          allow(AUTH, [SUPABASE, 'lib', 'shared-types']),
 
           // Only server/ opens a database connection, so actions and HTTP
           // handlers must delegate and one write cannot be written twice.
           // proxy.ts is the exception — it refreshes the auth token.
-          allow(SERVER, SUPABASE),
+          allow(SERVER, [SUPABASE, AUTH]),
           allowFile('proxy', [SUPABASE, 'lib']),
 
           { allow: { to: { module: NPM_PACKAGES } } },

@@ -29,7 +29,8 @@ The starting point for every new client project. Item-level detail in
 
 ## Database and backend
 
-- **Supabase** — three clients, safe on a fresh clone with no database.
+- **Supabase** — server client plus session refresh, safe on a fresh clone with
+  no database. Session cookies are `HttpOnly`.
 - **SQL migrations** — versioned files, one promotion path to production.
 - **Query layer** — all database access in one place, never in the UI.
 - **Row-level security** — required on every table.
@@ -69,7 +70,7 @@ The starting point for every new client project. Item-level detail in
 ## Working with AI
 
 - **Workflow guide** — how to take a feature from prompt to merged pull request.
-- **Context files** — one source of truth, read by Claude, Cursor and Codex.
+- **Context file** — the rules Claude reads before writing code.
 - **Write-time hooks** — an agent is blocked as it writes, not corrected later.
 - **Fast linting** — checks quick enough to run after every file an agent writes.
 - **Skills** — scaffolding and review tasks defined once, reused everywhere.

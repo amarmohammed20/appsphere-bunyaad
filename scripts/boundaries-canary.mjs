@@ -1,10 +1,6 @@
-// A boundaries config can pass lint while enforcing nothing — a pattern that
-// stops matching leaves files unclassified and every policy silently succeeds.
-// That happened twice during setup, so green lint is not evidence.
-//
-// Asserting the exact rule matters: a dead policy can still trip
-// no-unknown-files, which looks like success. Files are written to disk
-// because import/no-cycle resolves the real dependency graph.
+// A boundaries config whose patterns stop matching passes lint while
+// enforcing nothing — happened twice, so green lint is not evidence. Each
+// case asserts the exact rule; files go to disk for import/no-cycle.
 
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -15,50 +11,62 @@ const CASES = [
   {
     name: 'component imports a query',
     rule: 'boundaries/dependencies',
-    path: 'src/features/contact/components/__canary.tsx',
-    code: `import { listEnquiries } from '../server/queries';\nexport const a = listEnquiries;\n`,
+    path: 'src/features/users/components/__canary.tsx',
+    code: `import { listUsers } from '../server/queries';\nexport const a = listUsers;\n`,
   },
   {
     name: 'feature imports another feature',
     rule: 'boundaries/dependencies',
     path: 'src/features/__canary/components/__canary.tsx',
-    code: `import { contactLabels } from '@/features/contact/data/labels';\nexport const b = contactLabels;\n`,
+    code: `import { usersLabels } from '@/features/users/data/labels';\nexport const b = usersLabels;\n`,
   },
   {
     name: 'component imports the Supabase wrapper',
     rule: 'boundaries/dependencies',
-    path: 'src/features/contact/components/__canary2.tsx',
-    code: `import { createClient } from '@/lib/supabase/server';\nexport const c = createClient;\n`,
+    path: 'src/features/users/components/__canary2.tsx',
+    code: `import { createSupabaseClient } from '@/lib/supabase/createSupabaseClient';\nexport const c = createSupabaseClient;\n`,
   },
   {
     name: 'component imports the Supabase SDK directly',
     rule: 'boundaries/dependencies',
-    path: 'src/features/contact/components/__canary3.tsx',
-    code: `import { createClient } from '@supabase/supabase-js';\nexport const d = createClient;\n`,
+    path: 'src/features/users/components/__canary3.tsx',
+    code: `import { createSupabaseClient } from '@supabase/supabase-js';\nexport const d = createSupabaseClient;\n`,
   },
   {
     name: 'data imports something with behaviour',
     rule: 'boundaries/dependencies',
-    path: 'src/features/contact/data/__canary.ts',
-    code: `import { createClient } from '@/lib/supabase/server';\nexport const e = createClient;\n`,
+    path: 'src/features/users/data/__canary.ts',
+    code: `import { createSupabaseClient } from '@/lib/supabase/createSupabaseClient';\nexport const e = createSupabaseClient;\n`,
   },
   {
     name: 'HTTP handler imports Supabase instead of delegating',
     rule: 'boundaries/dependencies',
-    path: 'src/features/contact/api/__canary.ts',
-    code: `import { createClient } from '@/lib/supabase/server';\nexport const f = createClient;\n`,
+    path: 'src/features/auth/api/__canary.ts',
+    code: `import { createSupabaseClient } from '@/lib/supabase/createSupabaseClient';\nexport const f = createSupabaseClient;\n`,
   },
   {
     name: 'lib launders Supabase to components',
     rule: 'boundaries/dependencies',
     path: 'src/lib/__canary.ts',
-    code: `import { createClient } from '@/lib/supabase/server';\nexport const g = createClient;\n`,
+    code: `import { createSupabaseClient } from '@/lib/supabase/createSupabaseClient';\nexport const g = createSupabaseClient;\n`,
+  },
+  {
+    name: 'component imports the session helpers',
+    rule: 'boundaries/dependencies',
+    path: 'src/features/users/components/__canary4.tsx',
+    code: `import { requireUser } from '@/lib/auth/session';\nexport const j = requireUser;\n`,
+  },
+  {
+    name: 'lib launders the session helpers to components',
+    rule: 'boundaries/dependencies',
+    path: 'src/lib/__canary2.ts',
+    code: `import { requireUser } from '@/lib/auth/session';\nexport const k = requireUser;\n`,
   },
   {
     name: 'invented folder inside a feature falls to the catch-all',
     rule: 'boundaries/dependencies',
-    path: 'src/features/contact/__canaryhelpers/__canary.ts',
-    code: `import { createClient } from '@/lib/supabase/server';\nexport const h = createClient;\n`,
+    path: 'src/features/users/__canaryhelpers/__canary.ts',
+    code: `import { createSupabaseClient } from '@/lib/supabase/createSupabaseClient';\nexport const h = createSupabaseClient;\n`,
   },
   {
     name: 'unclassified folder is rejected',
@@ -71,7 +79,7 @@ const CASES = [
 // The cases above prove bad imports fail. This proves good ones still pass —
 // a broken `captured` template would deny every same-feature import and the
 // checks above would stay green.
-const KNOWN_GOOD = 'src/features/contact/components/ContactForm.tsx';
+const KNOWN_GOOD = 'src/features/users/components/UsersTable.tsx';
 
 function writeCases() {
   for (const { path, code } of CASES) {
@@ -83,7 +91,7 @@ function writeCases() {
 function removeCases() {
   for (const { path } of CASES) rmSync(path, { force: true });
   rmSync('src/features/__canary', { recursive: true, force: true });
-  rmSync('src/features/contact/__canaryhelpers', { recursive: true, force: true });
+  rmSync('src/features/users/__canaryhelpers', { recursive: true, force: true });
   rmSync('src/__canaryjobs', { recursive: true, force: true });
 }
 
