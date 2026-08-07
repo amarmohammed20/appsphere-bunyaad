@@ -4,7 +4,7 @@ import { cookies } from 'next/headers';
 // Re-exported so features never import the SDK directly (boundaries rule).
 export { type EmailOtpType } from '@supabase/supabase-js';
 
-import { clientEnv, assertSupabaseConfigured } from '@/lib/env';
+import { supabaseEnv, assertSupabaseConfigured } from '@/lib/env';
 import { hardenSessionCookie } from '@/lib/supabase/hardenSessionCookie';
 import { type Database } from '@/types/database.types';
 
@@ -18,8 +18,8 @@ export async function createSupabaseClient() {
   const cookieStore = await cookies();
 
   return createServerClient<Database>(
-    clientEnv.NEXT_PUBLIC_SUPABASE_URL,
-    clientEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    supabaseEnv.NEXT_PUBLIC_SUPABASE_URL,
+    supabaseEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() {

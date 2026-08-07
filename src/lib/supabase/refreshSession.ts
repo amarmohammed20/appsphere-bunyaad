@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
-import { clientEnv, isSupabaseConfigured } from '@/lib/env';
+import { supabaseEnv, isSupabaseConfigured } from '@/lib/env';
 import { hardenSessionCookie } from '@/lib/supabase/hardenSessionCookie';
 import { type Database } from '@/types/database.types';
 
@@ -27,8 +27,8 @@ export async function refreshSession(request: NextRequest) {
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient<Database>(
-    clientEnv.NEXT_PUBLIC_SUPABASE_URL,
-    clientEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    supabaseEnv.NEXT_PUBLIC_SUPABASE_URL,
+    supabaseEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() {
