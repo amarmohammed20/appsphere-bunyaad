@@ -92,26 +92,74 @@ assertQueryReturns(
 // Policy count proves policies exist, not that they work — so also behave
 // like a signed-in member (same claims a browser carries), rolled back after.
 const MEMBER_ID = '10000000-0000-4000-8000-000000000002';
-const asMember = (sql) =>
+
+const asSignedInUser = (userId, sql) =>
   `begin;
    select set_config('request.jwt.claims',
-     '{"sub":"${MEMBER_ID}","role":"authenticated"}', true);
+     '{"sub":"${userId}","role":"authenticated"}', true);
    set local role authenticated;
    ${sql}
    rollback;`;
 
-assertQueryReturns(
+// psql prints one result per statement, so the block above returns
+// BEGIN / the set_config value / SET / our value / ROLLBACK. Comparing the
+// whole blob never matches — assert on the line immediately before ROLLBACK.
+const assertSignedInQueryReturns = (label, userId, sql, expected) => {
+  const lines = runSql(asSignedInUser(userId, sql))
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const rollbackIndex = lines.lastIndexOf('ROLLBACK');
+  const actual = rollbackIndex > 0 ? lines[rollbackIndex - 1] : '';
+
+  if (actual !== expected) {
+    console.error(
+      `::error::${label} Expected ${expected}, received ${actual || '(empty)'}. Full output: ${lines.join(' | ')}`,
+    );
+    process.exit(1);
+  }
+
+  console.warn(`${label} OK (${actual})`);
+};
+
+assertSignedInQueryReturns(
   'RLS: member sees only their own profile',
-  asMember(`select count(*)::text from public.profiles;`),
+  MEMBER_ID,
+  `select count(*)::text from public.profiles;`,
   '1',
 );
 
-assertQueryReturns(
+assertSignedInQueryReturns(
   'RLS: member cannot promote themselves',
-  asMember(`with attempt as (
+  MEMBER_ID,
+  `with attempt as (
      update public.profiles set role = 'admin'
      where id = '${MEMBER_ID}' returning 1
-   ) select count(*)::text from attempt;`),
+   ) select count(*)::text from attempt;`,
+  '0',
+);
+
+// The admin path is the one that broke when is_admin() was revoked rather than
+// hidden: policies are evaluated with the caller's privileges, so an admin who
+// cannot execute the helper silently sees nothing. Only asserting the member
+// path missed it entirely.
+const ADMIN_ID = '10000000-0000-4000-8000-000000000001';
+
+assertSignedInQueryReturns(
+  'RLS: admin sees every profile',
+  ADMIN_ID,
+  `select count(*)::text from public.profiles;`,
+  '2',
+);
+
+// Hidden by schema visibility, not by revoking execute — `private` is absent
+// from `[api] schemas`, so PostgREST never exposes it.
+assertQueryReturns(
+  'is_admin is not in the API-exposed public schema',
+  `select count(*)::text from pg_proc p
+     join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'is_admin';`,
   '0',
 );
 

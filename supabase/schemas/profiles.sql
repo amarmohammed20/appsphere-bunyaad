@@ -20,9 +20,24 @@ grant all on public.profiles to service_role;
 -- migration matches this file, not the defaults.
 revoke truncate, references, trigger on public.profiles from anon, authenticated;
 
+-- A definer function that bypasses RLS should not also be a REST endpoint.
+-- Revoking execute is not the way to achieve that: Postgres evaluates a policy
+-- expression with the calling user's privileges, so removing execute from
+-- `authenticated` makes every policy below fail with "permission denied for
+-- function is_admin". Verified — see docs/supabase-diff-caveats.md.
+--
+-- The gate is schema exposure. `private` is absent from `[api] schemas` in
+-- config.toml, so PostgREST never publishes it, while `authenticated` keeps
+-- the execute privilege the policies require.
+create schema if not exists private;
+
+-- Not what protects the policies (a stored policy resolves the function by
+-- oid), but required for any direct `private.is_admin()` call.
+grant usage on schema private to authenticated;
+
 -- DEFINER so policies can ask about roles without recursing into their own
 -- table's policies.
-create function public.is_admin()
+create function private.is_admin()
 returns boolean
 language sql
 security definer
@@ -35,9 +50,7 @@ as $$
   );
 $$;
 
--- Policies still evaluate it; a definer function that bypasses RLS should
--- not also be a public RPC endpoint.
-revoke execute on function public.is_admin() from public, anon, authenticated;
+grant execute on function private.is_admin() to authenticated;
 
 create policy "own profile is readable"
   on public.profiles for select
@@ -47,19 +60,19 @@ create policy "own profile is readable"
 create policy "admins may read every profile"
   on public.profiles for select
   to authenticated
-  using (public.is_admin());
+  using (private.is_admin());
 
 -- id <> auth.uid(): admins manage others, never their own row.
 create policy "admins may update other profiles"
   on public.profiles for update
   to authenticated
-  using (public.is_admin() and id <> (select auth.uid()))
-  with check (public.is_admin());
+  using (private.is_admin() and id <> (select auth.uid()))
+  with check (private.is_admin());
 
 create policy "admins may delete other profiles"
   on public.profiles for delete
   to authenticated
-  using (public.is_admin() and id <> (select auth.uid()));
+  using (private.is_admin() and id <> (select auth.uid()));
 
 -- The wall for the last-admin rule — holds even against direct REST calls.
 -- The advisory lock serialises concurrent demotions so both cannot read "2".

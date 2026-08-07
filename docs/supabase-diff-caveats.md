@@ -8,7 +8,11 @@ schema file explicitly asked for.
 CLAUDE.md already says never to commit a generated migration unread. This file
 is what to read it _for_.
 
-## Caught here, on 2026-08-07 (CLI 2.111.0, pg-delta engine)
+## Caught here, on 2026-08-07 (CLI 2.111.0)
+
+The diff output reports `"engine":"migra"`. Supabase's docs say pg-delta is the
+default; on this CLI version it is not. Check the engine field before assuming
+which tool produced a migration.
 
 `supabase/schemas/profiles.sql` contains:
 
@@ -48,7 +52,8 @@ the diff tool does not capture:
 - Grant statements duplicated from default privileges
 
 Function `EXECUTE` privileges are **not** on that list. Either the docs are
-incomplete or it is a bug — see "Reporting it" below.
+incomplete or it is a bug. The upstream report is drafted outside this repo,
+since it is about Supabase rather than the boilerplate.
 
 ## Checklist for every generated migration
 
@@ -70,6 +75,34 @@ Read the migration against the schema file it came from and confirm:
 Anything the tool cannot express belongs in a hand-written migration, stated as
 such in a comment, with the reason.
 
+## The follow-on: revoking `EXECUTE` broke every policy
+
+The hand-added revoke applied cleanly and then broke the app, locally and in
+production:
+
+```
+ERROR: permission denied for function is_admin
+```
+
+**Postgres evaluates a policy expression with the calling user's privileges.**
+A `security definer` helper called from a policy must therefore stay executable
+by that user. Revoking `EXECUTE` from `authenticated` does not hide the
+function — it disables every policy that calls it.
+
+The fix is schema exposure, not privileges: `private.is_admin()`, with
+`private` absent from `[api] schemas` in `config.toml`, so PostgREST never
+publishes it while `authenticated` keeps the `EXECUTE` it needs.
+
+Verified by breaking it deliberately:
+
+| Change                                              | Policies still work?                               |
+| --------------------------------------------------- | -------------------------------------------------- |
+| `revoke usage on schema private from authenticated` | yes — a stored policy resolves the function by oid |
+| `revoke execute on function private.is_admin()`     | **no** — permission denied                         |
+
+So `EXECUTE` is the gate that matters, and the schema-usage grant is only
+needed for direct calls.
+
 ## Do not rely on reading alone
 
 Everything else in this repo is enforced by a command. This checklist is
@@ -77,10 +110,14 @@ enforced by a person's attention, which does not survive a late Friday and does
 not apply at all when an agent generates the migration.
 
 So anything the schema asserts about privileges gets a **behavioural** test in
-`scripts/db/verify-reset-db.mjs`, which runs on every `pnpm db:reset`. Assert
-the outcome, not the migration text — that stays true across engine and CLI
-versions:
+`scripts/db/verify-reset-db.mjs`. Note this is `pnpm verify:db-reset`, a
+separate command from `pnpm db:reset` — only CI runs both. Assert the outcome,
+not the migration text, so the check survives engine and CLI changes:
 
-> connect as `authenticated`, call `is_admin()`, expect permission denied
+> sign in as an admin, select from `profiles`, expect to see every row
 
-That is the check that would have caught this without anyone reading anything.
+That check now exists, and it was proved non-vacuous by revoking `EXECUTE` and
+watching it fail. Two of the checks in that file had never passed at all — the
+assertion compared psql's whole multi-statement transcript against a single
+value, so `1` was compared to `BEGIN | {...} | SET | 1 | ROLLBACK`. Nothing
+noticed, because `db-checks` has never run on a real PR.
