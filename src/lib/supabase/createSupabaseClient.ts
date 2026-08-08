@@ -1,9 +1,6 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
-// Re-exported so features never import the SDK directly (boundaries rule).
-export { type EmailOtpType } from '@supabase/supabase-js';
-
 import { supabaseEnv, assertSupabaseConfigured } from '@/lib/env';
 import { hardenSessionCookie } from '@/lib/supabase/hardenSessionCookie';
 import { type Database } from '@/types/database.types';
