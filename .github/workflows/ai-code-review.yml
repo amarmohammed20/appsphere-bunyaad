@@ -24,6 +24,10 @@ jobs:
     with:
       # claude, codex or cursor — all three are in the image.
       backend: claude
+      # TEMPORARY (shakedown): pin to the candidate published from this branch so
+      # the review runs before :v1 exists. Replace sha-REPLACE_ME with the tag
+      # from the release-image run summary. Remove this line at step 6 (default is :v1).
+      image: ghcr.io/amarmohammed20/appsphere-bunyaad/ai-code-review:sha-REPLACE_ME
     # Named secrets, never `secrets: inherit`. Only the chosen backend needs one.
     secrets:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

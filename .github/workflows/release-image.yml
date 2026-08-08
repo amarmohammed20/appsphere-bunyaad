@@ -13,7 +13,9 @@ on:
       - '.github/workflows/release-image.yml'
       - '.github/workflows/release-image-reusable.yml'
   push:
-    branches: [main]
+    # TEMPORARY (shakedown): publish a candidate image from this branch so the
+    # review job can be tested before merge. Remove before merging (step 4).
+    branches: [main, feat/ai-code-review-ci]
     paths:
       - 'docker/ai-code-review/**'
       - '.github/workflows/release-image.yml'
