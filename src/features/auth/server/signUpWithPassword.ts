@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { reportError } from '@/lib/sentry/reportError';
 import { createSupabaseClient } from '@/lib/supabase/createSupabaseClient';
 
 import { authLabels } from '../data/labels';
@@ -8,6 +9,7 @@ import { type AuthResult } from '../types';
 
 // The database trigger creates the profile row, always as member — roles
 // are never chosen at sign-up.
+
 export async function signUpWithPassword(input: SignUpInput): Promise<AuthResult> {
   const supabase = await createSupabaseClient();
 
@@ -22,7 +24,7 @@ export async function signUpWithPassword(input: SignUpInput): Promise<AuthResult
       return { ok: false, error: authLabels.emailTaken };
     }
 
-    console.error('signUpWithPassword failed', { code: error.code });
+    reportError('signUpWithPassword failed', error, { action: 'signUpWithPassword' });
     return { ok: false, error: authLabels.failure };
   }
 

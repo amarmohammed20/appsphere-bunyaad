@@ -15,3 +15,4 @@ allowBuilds:
   sharp: true # native image binary for next/image
   unrs-resolver: true # native binding for eslint import resolution
   supabase: true # postinstall downloads the CLI binary
+  '@sentry/cli': true # postinstall downloads the binary that uploads source maps

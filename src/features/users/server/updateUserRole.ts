@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { requireAdmin } from '@/lib/auth/session';
+import { reportError } from '@/lib/sentry/reportError';
 import { createSupabaseClient } from '@/lib/supabase/createSupabaseClient';
 
 import { usersLabels } from '../data/labels';
@@ -36,7 +37,7 @@ export async function updateUserRole(id: string, role: UserRole): Promise<UserMu
   const { error } = await supabase.from('profiles').update({ role }).eq('id', id);
 
   if (error) {
-    console.error('updateUserRole failed', { code: error.code });
+    reportError('updateUserRole failed', error, { action: 'updateUserRole', targetId: id });
     return { ok: false, error: usersLabels.failure };
   }
 
