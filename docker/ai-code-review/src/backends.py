@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""LLM backend invocation — one place for CLI commands and subprocess hygiene.
-
-Three backends, one review each. Which one runs is a workflow input; the image
-carries all of them so switching model is a config change, not a rebuild.
-"""
+"""LLM backend invocation — CLI commands and subprocess hygiene in one place."""
 
 import os
 import subprocess
@@ -11,11 +7,9 @@ from pathlib import Path
 
 BACKENDS = ("claude", "codex", "cursor")
 
-# Dropped from every agent subprocess. The agent is reading a diff written by
-# whoever opened the pull request, and a diff is an untrusted input — anything
-# it could talk the agent into doing, it can only do with a credential the
-# agent can see. The job needs GITHUB_TOKEN to post the review; the agent does
-# not, so the agent never gets it.
+# Dropped from every agent subprocess: the diff is untrusted input, and anything
+# it could talk the agent into doing needs a credential the agent can see. The
+# job needs GITHUB_TOKEN to post; the agent does not, so it never gets it.
 _JOB_SECRETS = (
     "GITHUB_TOKEN",
     "GH_TOKEN",
@@ -30,8 +24,7 @@ _JOB_SECRETS = (
     "NPM_TOKEN",
 )
 
-# Model credentials, kept only for the backend that needs them. Running codex
-# does not require handing it an Anthropic key.
+# Model credentials, kept only for the backend that needs them.
 _BACKEND_SECRETS = {
     "claude": ("ANTHROPIC_API_KEY",),
     "cursor": ("CURSOR_API_KEY",),
@@ -51,7 +44,7 @@ def model_for(backend: str) -> str:
 
 
 def sanitized_env(backend: str) -> dict[str, str]:
-    """Agent subprocess environment: job credentials out, this backend's model credentials in."""
+    """Agent env: job credentials out, this backend's model credentials in."""
     env = dict(os.environ)
     for key in _JOB_SECRETS:
         env.pop(key, None)
@@ -65,9 +58,8 @@ def sanitized_env(backend: str) -> dict[str, str]:
 def command(backend: str) -> tuple[list[str], bool]:
     """Return (argv, prompt_on_stdin) for one backend.
 
-    claude is the odd one out: it reads its context from CLAUDE.md in the
-    working directory rather than from stdin, so build_prompt writes the
-    assembled prompt there and the argv carries only the instruction to read it.
+    claude reads its context from CLAUDE.md in the working directory rather than
+    stdin, so build_prompt writes it there and the argv only points at it.
     """
     model = model_for(backend)
 
@@ -76,9 +68,7 @@ def command(backend: str) -> tuple[list[str], bool]:
             "claude",
             "--model",
             model,
-            # Write is the only tool the job needs: everything the agent should
-            # look at is already in the prompt, and Bash would hand a diff a
-            # way to run commands.
+            # Write is all it needs; Bash would hand a diff a way to run commands.
             "--allowedTools",
             "Write",
             "--disallowedTools",
@@ -91,17 +81,16 @@ def command(backend: str) -> tuple[list[str], bool]:
         cmd = [
             "codex",
             "exec",
-            # The working directory is a scratch dir, not a checkout.
+            # Working dir is a scratch dir, not a checkout.
             "--skip-git-repo-check",
             "--ephemeral",
-            # Enough to write the report, not enough to touch the repo.
+            # Enough to write the report, not to touch the repo.
             "--sandbox",
             "workspace-write",
         ]
         if model:
             cmd += ["-m", model]
-        # `-` makes codex read the prompt from stdin rather than argv, which
-        # keeps a 100k-char prompt off the command line.
+        # `-` reads the prompt from stdin, keeping a 100k-char prompt off argv.
         cmd.append("-")
         return cmd, True
 

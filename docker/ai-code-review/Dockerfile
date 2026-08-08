@@ -1,25 +1,22 @@
 FROM public.ecr.aws/ubuntu/ubuntu:24.04_stable@sha256:8c10ecc59261c77dd866fa8587f1b9cbf172ad8f1253f0af96eaae0fa390c132
 
-# Every CLI below is pinned to a version and verified against a checksum we
-# recorded ourselves. A moving tag lets an upstream compromise walk into a job
-# that holds a token with `pull-requests: write`.
+# Every CLI is pinned and checksum-verified: a moving tag lets an upstream
+# compromise into a job holding a pull-requests: write token.
 
 # https://nodejs.org/en/download/releases/
 ENV NODEJS_VERSION="v24.12.0"
 
-# https://downloads.cursor.com/lab/ — no published checksum file, so this is
-# the sha256 of the tarball at the time of pinning.
+# https://downloads.cursor.com/lab/ — no published checksum, so this is the
+# sha256 of the tarball at pin time.
 ENV CURSOR_CLI_VERSION="2026.08.04-aaa8809"
 ENV CURSOR_CHECKSUM="e282068dcb5cdd668b8ce2e3456c58be13bb64a834e1ad49f8534b5cd7aa2fe5"
 
-# https://github.com/anthropics/claude-code/releases — this is the version on
-# the `stable` channel, not `latest`; checksum comes from the release's
-# SHASUMS256.txt.
+# https://github.com/anthropics/claude-code/releases — `stable` channel;
+# checksum from the release's SHASUMS256.txt.
 ENV CLAUDE_CODE_VERSION="2.1.220"
 ENV CLAUDE_CODE_CHECKSUM="e69e7f72d784c243bcc377a578ad9ff8e65ae14da672fbbf9f2ba7bf47eca7ec"
 
-# https://github.com/openai/codex/releases — release tags carry a `rust-v`
-# prefix. The musl build is static, so it needs no runtime of its own.
+# https://github.com/openai/codex/releases — tags carry a `rust-v` prefix; musl build is static.
 ENV CODEX_VERSION="0.147.0"
 ENV CODEX_CHECKSUM="0246e2e773834e07f0fb5249ed6ebad12e4591e608f8c7bb97dd6a9690544c36"
 
@@ -65,9 +62,7 @@ RUN curl --silent --show-error --location \
   rm -f "claude-linux-x64.tar.gz" && \
   claude --version
 
-# Install Codex CLI
-# The archive holds one file, named for its target triple, so it is renamed on
-# the way out rather than extracted in place.
+# Install Codex CLI. The archive holds one file named for its target triple, renamed on extract.
 RUN curl --silent --show-error --location \
   --output "codex.tar.gz" \
   "https://github.com/openai/codex/releases/download/rust-v${CODEX_VERSION}/codex-x86_64-unknown-linux-musl.tar.gz" && \
@@ -80,9 +75,8 @@ RUN curl --silent --show-error --location \
 
 COPY codex/config.toml /root/.codex/config.toml
 
-# Codex resolves its config and auth through CODEX_HOME rather than $HOME, so
-# stating it here keeps the baked config reachable no matter what HOME is set to
-# — a GitHub container job does not run with HOME=/root.
+# Codex reads config/auth via CODEX_HOME, not $HOME, so the baked config stays
+# reachable whatever HOME a container job sets.
 ENV CODEX_HOME="/root/.codex"
 
 COPY src/ /scripts/
@@ -90,8 +84,8 @@ COPY .agents/ /scripts/.agents/
 COPY shared/ /scripts/shared/
 COPY AGENTS.md /scripts/AGENTS.md
 
-# Shipped inside the image so the release workflow needs no knowledge of what is
-# in here, and so a pulled image can be verified without a workflow at all.
+# Shipped in the image so the release workflow needs no knowledge of it and a
+# pulled image can be verified without a workflow.
 COPY --chmod=755 smoke-test.sh /smoke-test.sh
 
 ENV PATH="/root/.local/bin:${PATH}"

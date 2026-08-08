@@ -1,15 +1,9 @@
 #!/usr/bin/env python3
-"""Post code_review_report.json to the pull request as inline review comments.
+"""Post code_review_report.json to the PR as inline review comments.
 
-GitHub has no equivalent of GitLab's code quality report — nothing on the
-platform ingests a findings file and turns it into inline comments. The Reviews
-API is the closest thing: one request carrying a summary plus a comment per
-finding, which lands as a real threaded comment in Files changed that the author
-can reply to and resolve.
-
-Its one hard rule is that every comment must sit on a line GitHub considers part
-of the diff. run_review.py has already enforced that against git's own hunks, so
-by the time findings reach here they are postable.
+GitHub has no GitLab-style code quality report, so this uses the Reviews API:
+one request with a summary plus a comment per finding. Every comment must sit on
+a diff line; run_review.py already enforced that against git's hunks.
 """
 
 import json
@@ -25,9 +19,8 @@ _REPORT = Path("code_review_report.json")
 _ICON = {"critical": "🔴", "major": "🟠", "minor": "🟡", "info": "🔵"}
 _ORDER = ("critical", "major", "minor", "info")
 
-# One request carrying hundreds of comments is both a rejected payload and an
-# unreadable pull request. Anything past this is reported in the summary rather
-# than dropped quietly.
+# Past this many comments the payload is rejected and the PR unreadable; the rest
+# go in the summary, not dropped quietly.
 _MAX_COMMENTS = int(os.environ.get("REVIEW_MAX_COMMENTS", "30"))
 
 
@@ -69,7 +62,7 @@ def _comment_body(finding: dict) -> str:
 
 
 def _summary(findings: list[dict], backend: str, overflow: int) -> str:
-    """The review's top-level body: a count per severity and what model produced it."""
+    """The review's top-level body: a count per severity and the model used."""
     counts = {s: sum(1 for f in findings if f["severity"] == s) for s in _ORDER}
     tally = (
         " · ".join(f"{_ICON[s]} {counts[s]} {s}" for s in _ORDER if counts[s])
@@ -134,9 +127,7 @@ def main() -> None:
 
     _step_summary(body)
 
-    # COMMENT, never REQUEST_CHANGES: a model that is wrong one time in five
-    # should not be able to block a merge. The findings are advice, and the
-    # required checks are what actually gate.
+    # COMMENT, never REQUEST_CHANGES: advice must not block a merge.
     path = f"/repos/{repo}/pulls/{number}/reviews"
     status, response = _api(
         path,
@@ -148,9 +139,8 @@ def main() -> None:
         )
         return
 
-    # A single unpostable line rejects the whole request with 422, taking every
-    # other comment with it. Retrying without comments keeps the summary — and
-    # the artifact still holds the detail.
+    # One unpostable line 422s the whole request; retry without comments to keep
+    # the summary (the artifact still has the detail).
     print(
         f"{_LOG} WARN: review with comments rejected (HTTP {status}): {response[:600]}",
         file=sys.stderr,

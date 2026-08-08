@@ -1,12 +1,9 @@
 #!/usr/bin/env python3
-"""Pull request scope: changed files, diff hunks, and pre-computed patches.
+"""PR scope: changed files, diff hunks, and pre-computed patches.
 
-Two independent sources agree on the file list before anything is reviewed:
-`git diff` against the merge base, and GitHub's pull request files API. A path
-has to appear in both. Git alone drifts when the checkout is not what we think
-it is; the API alone cannot give us hunks. Where they disagree the path is
-dropped and the divergence logged, because a reviewer pointed at a file that is
-not really in the pull request produces findings nobody can act on.
+The file list is the intersection of `git diff` against the merge base and the
+GitHub PR files API — a path must appear in both. Git alone drifts if the
+checkout is wrong; the API alone gives no hunks. Divergences are dropped and logged.
 """
 
 import json
@@ -22,12 +19,10 @@ from dataclasses import dataclass, field
 _HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
 _LOG = "[review]"
 
-# The files API stops at this many entries. Past it the list is truncated, and
-# intersecting against a truncated list would silently drop real files.
+# The files API caps here; intersecting against a truncated list would drop files.
 _API_FILE_CAP = 3000
 
-# Mirrors git's --diff-filter=ACMR: everything except a deletion. There is
-# nothing left to review in a file that is gone.
+# git's --diff-filter=ACMR: everything except a deletion (nothing to review in a gone file).
 _REVIEWABLE_STATUS = frozenset({"added", "modified", "renamed", "copied", "changed"})
 
 
@@ -62,7 +57,7 @@ class ReviewScope:
 
     @classmethod
     def from_manifest(cls, manifest: dict) -> "ReviewScope | None":
-        """Reconstruct scope from a previously serialised manifest; returns None if refs are absent."""
+        """Reconstruct scope from a serialised manifest; None if refs are absent."""
         refs = manifest.get("refs") or {}
         base = refs.get("base") or ""
         commit = refs.get("commit") or ""
@@ -98,7 +93,7 @@ class ReviewScope:
     # --- prompts & filtering ------------------------------------------------
 
     def patches_markdown(self, paths: list[str], max_chars: int = 120_000) -> str:
-        """Render unified diffs for the given paths as a markdown block, truncating at max_chars."""
+        """Render unified diffs for the given paths as markdown, truncating at max_chars."""
         if not paths:
             return ""
 
@@ -127,7 +122,7 @@ class ReviewScope:
         return "\n".join(parts)
 
     def allows_finding(self, path: str, line: int, tolerance: int = 2) -> bool:
-        """Return True if a finding at (path, line) falls within the changed hunks."""
+        """True if a finding at (path, line) falls within the changed hunks."""
         if path not in self.files:
             return False
         ranges = self.hunks.get(path)
@@ -158,14 +153,11 @@ def _event() -> dict:
 
 
 def _resolve_refs() -> tuple[str, str]:
-    """Determine the merge base and head commit for the pull request.
+    """Determine the merge base and head commit for the PR.
 
-    GITHUB_SHA is the merge commit Actions synthesises for a pull_request
-    event, not the branch tip, so head comes from the payload. base.sha is the
-    target branch as it stood when the pull request opened, which is only the
-    merge base if nothing has landed on the target since — so the merge base is
-    computed rather than assumed. That also matches the three-dot range the
-    files API reports, which the two lists have to agree on.
+    Head comes from the payload (GITHUB_SHA is Actions' synthetic merge commit).
+    The merge base is computed, not assumed from base.sha, to match the three-dot
+    range the files API reports.
     """
     pull_request = _event().get("pull_request") or {}
     commit = (
@@ -200,13 +192,13 @@ def _ensure_refs(base: str, commit: str) -> None:
 
 
 def _git_names(base: str, commit: str) -> list[str]:
-    """Return the list of files added, copied, modified, or renamed between base and commit."""
+    """Files added, copied, modified, or renamed between base and commit."""
     result = _git("diff", "--name-only", "--diff-filter=ACMR", base, commit)
     return [line.strip() for line in result.stdout.splitlines() if line.strip()]
 
 
 def _git_line_count(base: str, commit: str) -> int:
-    """Return the total number of added + deleted lines between base and commit."""
+    """Total added + deleted lines between base and commit."""
     result = _git("diff", "--numstat", base, commit, check=False)
     if result.returncode != 0:
         return 0
@@ -223,13 +215,13 @@ def _git_line_count(base: str, commit: str) -> int:
 
 
 def _git_patch(base: str, commit: str, path: str) -> str:
-    """Return the unified diff for a single file, or an empty string on failure."""
+    """Unified diff for a single file, or an empty string on failure."""
     result = _git("diff", "-U3", base, commit, "--", path, check=False)
     return result.stdout.strip() if result.returncode == 0 else ""
 
 
 def _parse_hunks(patch: str) -> list[tuple[int, int]]:
-    """Parse a unified diff and return (start, end) line ranges for each hunk."""
+    """Parse a unified diff into (start, end) line ranges per hunk."""
     ranges = []
     for line in patch.splitlines():
         match = _HUNK.match(line)
@@ -244,7 +236,7 @@ def _parse_hunks(patch: str) -> list[tuple[int, int]]:
 def _git_hunks(
     base: str, commit: str, files: list[str]
 ) -> dict[str, list[tuple[int, int]]]:
-    """Return a per-file mapping of changed line ranges for all files with non-empty diffs."""
+    """Per-file changed line ranges, for files with non-empty diffs."""
     return {
         path: ranges
         for path in files
@@ -256,12 +248,10 @@ def _git_hunks(
 
 
 def _github_pr_paths() -> list[str] | None:
-    """Fetch changed file paths from the pull request files API; None if unavailable.
+    """Changed file paths from the PR files API; None if the answer can't be trusted.
 
-    Returns None rather than a partial list whenever the answer cannot be
-    trusted — no token, a failed request, or a pull request large enough to hit
-    the API's own cap. The caller treats None as "do not cross-check", which
-    keeps every git-derived file in scope instead of quietly dropping the tail.
+    None (no token, failed request, or over the API cap) tells the caller not to
+    cross-check, keeping every git-derived file rather than dropping the tail.
     """
     event = _event()
     number = (event.get("pull_request") or {}).get("number") or os.environ.get(
@@ -322,7 +312,7 @@ def _github_pr_paths() -> list[str] | None:
 
 
 def _intersect(git_files: list[str], api_files: list[str] | None) -> list[str]:
-    """Return only files present in both git diff and the API response, warning on divergence."""
+    """Only files present in both git diff and the API response, warning on divergence."""
     if api_files is None:
         return git_files
 

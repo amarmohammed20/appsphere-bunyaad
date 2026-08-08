@@ -1,13 +1,5 @@
-# Builds a container image, tests it, then pushes it. Generic on purpose: it
-# knows nothing about what is inside the image it is building.
-#
-# The order is the point. The image is built and loaded locally, the smoke test
-# runs against that local image, and only then is anything pushed. A published
-# tag nobody has run is a tag every consuming repo is about to fail on.
-#
-# The smoke test lives *inside* the image, at a path the caller names. That keeps
-# this file general — no per-image test script threaded through an input and
-# interpolated into a shell — and means a pulled image can be verified by hand.
+# Builds an image, smoke-tests it, then pushes. Generic: it knows nothing about
+# what is inside. The test runs against the locally-loaded image before any push.
 name: Release image (reusable)
 
 on:
@@ -19,29 +11,20 @@ on:
         required: true
       image:
         description: >-
-          Full image reference without a tag, e.g.
-          ghcr.io/owner/repo/ai-code-review. Stated explicitly rather than
-          derived from github.repository: in a called workflow that context is
-          the *caller's* repo, so deriving it would make every consuming repo
-          publish its own copy instead of using the shared one.
+          Full image reference without a tag. Stated explicitly, not derived
+          from github.repository, so consumers use the shared image.
         type: string
         required: true
       tag-prefix:
-        description: >-
-          Git tag prefix identifying releases of this image, e.g.
-          `ai-code-review-` for the tag `ai-code-review-v1.2.0`. Used in a
-          regex, so it must not contain regex metacharacters.
+        description: Git tag prefix, e.g. `ai-code-review-`. Used in a regex.
         type: string
         default: ''
       platforms:
-        description: Target platforms. Keep to amd64 unless the image is built for more.
+        description: Target platforms.
         type: string
         default: linux/amd64
       smoke-test:
-        description: >-
-          Path to an executable inside the image that verifies it. Empty skips
-          the test, which also skips the only thing standing between a broken
-          build and a published tag.
+        description: Path to an executable inside the image that verifies it. Empty skips it.
         type: string
         default: /smoke-test.sh
       push:
@@ -56,8 +39,7 @@ on:
         description: Newline-separated list of tags that were pushed.
         value: ${{ jobs.build.outputs.tags }}
 
-# Not a security boundary — a called workflow can only reduce the caller's
-# grant, so `packages: write` has to be granted by the caller too.
+# Must be granted by the caller too — a called workflow can only lower it.
 permissions:
   contents: read
   packages: write
@@ -79,10 +61,8 @@ jobs:
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: ${{ inputs.image }}
-          # type=match, not type=semver: semver refuses a prefixed tag, so
-          # `ai-code-review-v1.2.0` would parse as nothing and silently publish
-          # no version tag at all. The regex strips the prefix to give 1.2.0,
-          # 1.2 and v1 — v1 being the moving tag consuming repos track.
+          # type=match, not type=semver: semver refuses a prefixed tag. The regex
+          # strips the prefix to give 1.2.0, 1.2 and v1 (the moving tag).
           tags: |
             type=ref,event=branch
             type=sha,prefix=sha-,format=short
@@ -90,8 +70,7 @@ jobs:
             type=match,pattern=${{ inputs.tag-prefix }}v(\d+\.\d+),group=1
             type=match,pattern=${{ inputs.tag-prefix }}(v\d+),group=1
 
-      # Loaded, not pushed. `candidate` is a local-only tag that never leaves
-      # the runner.
+      # Loaded, not pushed — candidate:local never leaves the runner.
       - name: Build
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
@@ -102,9 +81,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # Inputs reach the shell as environment variables, never interpolated into
-      # the script body — a `${{ }}` inside `run:` is a script injection waiting
-      # for a caller to pass something with a quote in it.
+      # Path passed via env, never interpolated into the script, to avoid injection.
       - name: Smoke test
         if: inputs.smoke-test != ''
         env:
@@ -119,8 +96,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Everything is in the layer cache from the build above, so this uploads
-      # rather than rebuilds.
+      # Layers are cached from the build above, so this uploads rather than rebuilds.
       - name: Push
         id: push
         if: inputs.push
