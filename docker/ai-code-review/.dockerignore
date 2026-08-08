@@ -1,0 +1,13 @@
+# Python bytecode from running the scripts locally. Copying it in means the
+# image ships stale .pyc files compiled by whatever interpreter happened to be
+# on the developer's machine.
+__pycache__/
+*.py[cod]
+
+# Local test debris. Nothing that only exists because someone ran the review by
+# hand belongs in the image.
+code_review_report.json
+review_manifest.json
+.pytest_cache/
+.ruff_cache/
+.venv/

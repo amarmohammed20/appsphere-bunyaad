@@ -1,0 +1,159 @@
+# Every repo built from bunyaad calls this file rather than copying it, so a
+# fix here reaches all of them. See docs/reusable-workflows.md.
+#
+# One agent, one model, one pass. There is no router splitting the diff between
+# specialists and no aggregator reconciling them — the changed files go to one
+# backend and what comes back is filtered against the hunks git computed, then
+# posted as inline pull request comments.
+#
+# The model is a switch, not a fan-out. All three CLIs live in the image, so
+# trying another one is an input change rather than a rebuild.
+name: AI Code Review (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      backend:
+        description: Which CLI reviews the diff — claude, codex or cursor.
+        type: string
+        default: claude
+      model:
+        description: Model override. Empty uses the backend's default in the image.
+        type: string
+        default: ''
+      image:
+        description: >-
+          Review image. Pin to a digest for a reproducible run; the default
+          tracks v1 so fixes arrive without editing every repo.
+        type: string
+        default: ghcr.io/amarmohammed20/appsphere-bunyaad/ai-code-review:v1
+      timeout-minutes:
+        description: Ceiling on the whole job, including the model call.
+        type: number
+        default: 20
+      review-timeout:
+        description: Ceiling on the model call alone, in seconds.
+        type: number
+        default: 600
+      exclude-paths:
+        description: >-
+          Extra comma-separated glob patterns to keep out of the review, on top
+          of the lockfiles and generated directories excluded by default.
+        type: string
+        default: ''
+    secrets:
+      ANTHROPIC_API_KEY:
+        description: Required when backend is claude.
+        required: false
+      CODEX_API_KEY:
+        description: Required when backend is codex.
+        required: false
+      CURSOR_API_KEY:
+        description: Required when backend is cursor.
+        required: false
+
+# Not a security boundary — a called workflow can only reduce the caller's
+# grant. The cap that matters is in the caller.
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    name: Review
+    # Deliberately not a required check. The review is advice, and a model that
+    # is wrong one time in five must not be able to hold a merge.
+    #
+    # Fork pull requests are skipped rather than half-run: their GITHUB_TOKEN is
+    # read-only so no comment can be posted, and secrets are withheld so there
+    # is no model to call either. Reviewing them needs pull_request_target,
+    # which runs with a write token against code the fork controls — not worth
+    # it for a review comment.
+    if: github.event.pull_request.head.repo.fork != true
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    container:
+      image: ${{ inputs.image }}
+    # A container job does not run with HOME=/root — the runner points it at a
+    # mounted /github/home — which would orphan the cursor and codex configs
+    # baked into the image. Set job-wide, not per step, because the git
+    # safe.directory below is written to $HOME/.gitconfig by one step and read
+    # by another: if the two disagree on HOME, git rejects the workspace.
+    env:
+      HOME: /root
+    steps:
+      # TEMPORARY (shakedown): the missing-key guard is commented out so the
+      # container-job runtime can be exercised before any secret is added. With
+      # no key the model call fails silently (backends.invoke uses check=False),
+      # so the job goes green with zero findings — a green run proves the
+      # plumbing, NOT the review. Restore this before tagging v1.
+      # - name: Check the backend has a key
+      #   env:
+      #     BACKEND: ${{ inputs.backend }}
+      #     ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      #     CODEX_API_KEY: ${{ secrets.CODEX_API_KEY }}
+      #     CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+      #   run: |
+      #     case "$BACKEND" in
+      #       claude) key="$ANTHROPIC_API_KEY"; name=ANTHROPIC_API_KEY ;;
+      #       codex)  key="$CODEX_API_KEY";     name=CODEX_API_KEY ;;
+      #       cursor) key="$CURSOR_API_KEY";    name=CURSOR_API_KEY ;;
+      #       *) echo "::error::backend must be claude, codex or cursor (got '$BACKEND')"; exit 1 ;;
+      #     esac
+      #     if [ -z "$key" ]; then
+      #       echo "::error::backend is '$BACKEND' but $name was not passed to this workflow."
+      #       echo "::error::Add it under \`secrets:\` in the calling workflow. Do not use \`secrets: inherit\`."
+      #       exit 1
+      #     fi
+      #     echo "Backend '$BACKEND' has its key."
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The merge base is older than the pull request, and every hunk is
+          # computed from it. A shallow clone has no merge base to find.
+          fetch-depth: 0
+
+      # The workspace is created by the runner and mounted into the container,
+      # so its owner is not the container's user and git refuses to read it.
+      - name: Trust the workspace
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      # The token is here because review_scope cross-checks git's file list
+      # against the pull request files API. run_review strips it from the
+      # agent's own environment before invoking the model — the diff is
+      # untrusted input, and it must not be read by anything holding a token
+      # that can write to this repo.
+      - name: Review the diff
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REVIEW_BACKEND: ${{ inputs.backend }}
+          REVIEW_MODEL: ${{ inputs.model }}
+          REVIEW_TIMEOUT: ${{ inputs.review-timeout }}
+          REVIEW_EXCLUDE_PATHS: ${{ inputs.exclude-paths }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CODEX_API_KEY: ${{ secrets.CODEX_API_KEY }}
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+        run: python3 /scripts/run_review.py
+
+      - name: Post the review
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          REVIEW_BACKEND: ${{ inputs.backend }}
+        run: python3 /scripts/publish_review.py
+
+      # Kept even when a step above failed: on a timeout the manifest is the
+      # only record of what the review was pointed at, and the report holds
+      # any finding the comment cap left unposted.
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: code-review-report-${{ inputs.backend }}
+          path: |
+            code_review_report.json
+            review_manifest.json
+          if-no-files-found: warn
+          retention-days: 7

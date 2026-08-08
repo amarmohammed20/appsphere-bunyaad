@@ -1,0 +1,38 @@
+# Bunyaad running its own reusable workflow, and a working copy of what every
+# consuming repo writes. See docs/reusable-workflows.md.
+name: AI Code Review
+
+on:
+  pull_request:
+    # ready_for_review matters: the job below skips drafts, and a work in
+    # progress push is the noisiest, least useful time to spend a model call.
+    types: [opened, synchronize, reopened, ready_for_review]
+    # Every branch. `branches: [main]` would silently review nothing on pull
+    # requests targeting a develop or release branch.
+
+# Each push replaces the previous review, so cancel the run that was going to
+# post the stale one.
+concurrency:
+  group: ai-code-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+# The real ceiling on what the called workflow can do. `pull-requests: write` is
+# the whole point — it is what lets the findings land as inline comments — but
+# note what is absent: no `contents: write`, so a compromised v1 reviewing a
+# hostile diff still cannot push to this repo.
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  ai-code-review:
+    if: github.event.pull_request.draft == false
+    uses: ./.github/workflows/ai-code-review-reusable.yml
+    with:
+      # claude, codex or cursor. All three are in the image; this is the only
+      # line that changes to try another one.
+      backend: claude
+    # Named secrets, never `secrets: inherit` — see docs/reusable-workflows.md.
+    # Only the backend above needs a key; the others can be left out entirely.
+    secrets:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

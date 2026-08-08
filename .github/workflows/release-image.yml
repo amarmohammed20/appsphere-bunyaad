@@ -1,0 +1,60 @@
+# Publishes the AI code review image. Bunyaad running its own reusable
+# workflow, and a working copy of what any repo publishing an image writes.
+#
+# What triggers what:
+#   pull request touching docker/**  → build and smoke test, never push
+#   push to main touching docker/**  → push :main and :sha-<short>
+#   tag ai-code-review-v*            → push 1.2.0, 1.2 and v1
+#
+# `v1` is the moving tag ai-code-review.yml tracks, and only a version tag moves
+# it — a push to main publishes :main and :sha-<short> and nothing else, so
+# merging cannot change what consuming repos run.
+#
+# Consuming repos cloned from this template inherit this file along with
+# docker/. They do not need it: ai-code-review.yml defaults to bunyaad's
+# published image. Delete it there rather than rebuilding the same image into
+# every namespace.
+name: Release image
+
+on:
+  pull_request:
+    paths:
+      - 'docker/ai-code-review/**'
+      - '.github/workflows/release-image.yml'
+      - '.github/workflows/release-image-reusable.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'docker/ai-code-review/**'
+      - '.github/workflows/release-image.yml'
+      - '.github/workflows/release-image-reusable.yml'
+    tags:
+      - 'ai-code-review-v*'
+  workflow_dispatch:
+
+concurrency:
+  group: release-image-${{ github.ref }}
+  cancel-in-progress: true
+
+# The ceiling on what the called workflow can do. `packages: write` has to be
+# granted here — a called workflow can only reduce this, never raise it — and
+# nothing else is, so a compromised build cannot touch the repo contents.
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  release-image:
+    uses: ./.github/workflows/release-image-reusable.yml
+    with:
+      context: docker/ai-code-review
+      image: ghcr.io/${{ github.repository }}/ai-code-review
+      # Matches the `ai-code-review-v*` tag trigger above. The `v` belongs to
+      # the version, not the prefix, so `v1` can be derived as a tag of its own.
+      tag-prefix: ai-code-review-
+      # The image ships its own test, so this file names a path and stays out of
+      # the business of knowing what is inside.
+      smoke-test: /smoke-test.sh
+      # Nothing published from a pull request. Forks cannot write packages
+      # anyway, and an unreviewed branch should not be able to move a tag.
+      push: ${{ github.event_name != 'pull_request' }}

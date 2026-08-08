@@ -1,0 +1,26 @@
+# Codex CLI defaults for the review job. Copied to /root/.codex/config.toml.
+#
+# The agent's only legitimate side effect is writing code_review_report.json
+# into its working directory, so workspace-write is exactly the reach it needs.
+# approval_policy is "never" because there is no terminal to approve at — the
+# sandbox, not a prompt, is what bounds the blast radius.
+approval_policy = "never"
+sandbox_mode = "workspace-write"
+
+[sandbox_workspace_write]
+# The diff is already in the prompt. An agent that cannot reach the network
+# cannot exfiltrate the code it is reviewing, and cannot be talked into
+# fetching instructions by something planted in a diff. This does not affect
+# Codex's own calls to the model API, which are not sandboxed.
+network_access = false
+
+# A fresh container per job, so a persisted transcript is only ever a way for
+# the reviewed code to end up somewhere we did not put it.
+[history]
+persistence = "none"
+
+[analytics]
+enabled = false
+
+[feedback]
+enabled = false

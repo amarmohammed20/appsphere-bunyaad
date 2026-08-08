@@ -207,6 +207,136 @@ The consuming repo also needs `supabase/migrations/`, the `db:*` and
 `check:db-*`/`check:rls`/`verify:db-reset` scripts, and `scripts/db/` — all
 present in this template.
 
+## The AI code review workflow
+
+A third reusable workflow, same pattern, with one deliberate difference: **it is
+never a required status check.** It posts findings as inline pull request
+comments and nothing else. A model that is wrong one time in five must not be
+able to hold a merge, so it reviews with `event: COMMENT` and the job is allowed
+to fail without blocking.
+
+```yaml
+jobs:
+  ai-code-review:
+    if: github.event.pull_request.draft == false
+    uses: amarmohammed20/appsphere-bunyaad/.github/workflows/ai-code-review-reusable.yml@v1
+    with:
+      backend: claude
+    secrets:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+```
+
+The caller must grant `pull-requests: write` — without it there is nowhere for
+the comments to go. It does **not** grant `contents: write`, and should not: the
+job reads a diff written by whoever opened the pull request.
+
+### One model at a time
+
+Three CLIs live in the image — Claude Code, Codex and Cursor — but only one runs
+per review. `backend` is a switch, not a fan-out, so trying a different model is
+a one-line change rather than a rebuild. Each needs its own key, and only the
+one being used has to be set:
+
+| `backend` | Secret              |
+| --------- | ------------------- |
+| `claude`  | `ANTHROPIC_API_KEY` |
+| `codex`   | `CODEX_API_KEY`     |
+| `cursor`  | `CURSOR_API_KEY`    |
+
+The first step of the job checks the chosen backend's key is present and fails
+with a message naming it, rather than letting the model call fail obscurely
+several minutes in.
+
+### Inputs
+
+| Input             | Default               | Use                                         |
+| ----------------- | --------------------- | ------------------------------------------- |
+| `backend`         | `claude`              | `claude`, `codex` or `cursor`               |
+| `model`           | `''`                  | Override the backend's default model        |
+| `image`           | `…/ai-code-review:v1` | Pin to a digest for a reproducible run      |
+| `timeout-minutes` | `20`                  | Ceiling on the whole job                    |
+| `review-timeout`  | `600`                 | Ceiling on the model call alone, in seconds |
+| `exclude-paths`   | `''`                  | Extra comma-separated globs to skip         |
+
+Lockfiles, `src/components/ui/`, snapshots and minified assets are excluded
+already — `exclude-paths` adds to that list rather than replacing it.
+
+### Why not a GitHub code quality report
+
+On GitLab this job emitted a code quality JSON report and GitLab turned it into
+inline comments. **GitHub has no equivalent.** Two dead ends worth knowing about
+so nobody re-treads them:
+
+- **GitHub Code Quality** is GitHub's own analysis engine — CodeQL rules plus an
+  AI pass. It posts findings, but only its own. There is no way to feed it ours.
+- **Cobertura XML**, which that feature does ingest, is a _coverage_ format. Its
+  schema is `<line number hits="N">`; there is no field for a message, a
+  severity, or a fix. It can colour a line, not explain it.
+
+So findings are posted through the pull request Reviews API instead, which is
+free on public and private repos alike and produces comment threads the author
+can reply to and resolve. SARIF would also work and adds Security-tab tracking,
+but code scanning needs a GitHub Code Security licence on private repos, and
+consuming repos are private.
+
+### What is deliberately dropped
+
+Only lines in the diff can be commented on — that is the Reviews API's hard
+rule, not a choice. Findings are filtered against the hunks `git` computed, and
+the run logs a count per reason:
+
+| Dropped      | Because                                                   |
+| ------------ | --------------------------------------------------------- |
+| `unverified` | No `verified` citation, so the model may have invented it |
+| `off_diff`   | Outside every changed hunk, so the API would reject it    |
+| `no_fix`     | No remediation, which makes it a complaint not a review   |
+| `duplicate`  | Within three lines of a finding already kept              |
+
+Anything past the comment cap (30 by default) is named in the review summary and
+kept in full in the `code-review-report` artifact — the count is never silently
+truncated.
+
+### Fork pull requests are skipped
+
+Their `GITHUB_TOKEN` is read-only, so no comment can be posted, and secrets are
+withheld, so there is no model to call. Reviewing them would need
+`pull_request_target`, which runs with a write token against code the fork
+controls. Not worth it for a review comment.
+
+### The image
+
+`docker/ai-code-review/` builds to
+`ghcr.io/amarmohammed20/appsphere-bunyaad/ai-code-review`, published by
+`release-image.yml`. Every CLI inside is pinned to a version and a checksum we
+recorded ourselves, because this job holds a token that can write to the pull
+request.
+
+Tag `ai-code-review-v1.2.0` to publish `1.2.0`, `1.2` and `v1`. Pushes to `main`
+publish `main` and `sha-<short>` only, so `v1` never moves by accident. Pull
+requests build and smoke test without pushing.
+
+`release-image.yml` is a thin caller over `release-image-reusable.yml`, which is
+generic — it takes a `context`, an `image`, a `tag-prefix` and a path to a smoke
+test, and knows nothing about what is inside the image it builds. Two things
+about it are worth knowing:
+
+- **`image` is passed explicitly, never derived from `github.repository`.** In a
+  called workflow that context is the _caller's_ repo, so deriving it would make
+  every consuming repo publish its own copy of a shared image.
+- **The smoke test lives inside the image**, at `/smoke-test.sh`. That keeps the
+  release workflow general, and means a pulled image can be checked by hand:
+
+  ```bash
+  docker run --rm ghcr.io/<owner>/<repo>/ai-code-review:v1 /smoke-test.sh
+  ```
+
+  It asserts the CLIs execute, the scripts import, the prompt assets exist, and
+  — the non-obvious one — that each CLI's config is _ours_ rather than a
+  generated default. `cursor-agent` writes a permissive default config when it
+  cannot find one, so a wrong `HOME` does not error; it silently drops the
+  allowlist. Checking the file exists would pass in exactly that case, so the
+  test checks its contents.
+
 ## If bunyaad is ever renamed
 
 `uses:` follows GitHub's repository redirects, so consuming repos keep working.

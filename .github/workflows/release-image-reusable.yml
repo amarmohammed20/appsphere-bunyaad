@@ -1,0 +1,159 @@
+# Builds a container image, tests it, then pushes it. Generic on purpose: it
+# knows nothing about what is inside the image it is building.
+#
+# The order is the point. The image is built and loaded locally, the smoke test
+# runs against that local image, and only then is anything pushed. A published
+# tag nobody has run is a tag every consuming repo is about to fail on.
+#
+# The smoke test lives *inside* the image, at a path the caller names. That keeps
+# this file general — no per-image test script threaded through an input and
+# interpolated into a shell — and means a pulled image can be verified by hand.
+name: Release image (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      context:
+        description: Build context directory, e.g. docker/ai-code-review.
+        type: string
+        required: true
+      image:
+        description: >-
+          Full image reference without a tag, e.g.
+          ghcr.io/owner/repo/ai-code-review. Stated explicitly rather than
+          derived from github.repository: in a called workflow that context is
+          the *caller's* repo, so deriving it would make every consuming repo
+          publish its own copy instead of using the shared one.
+        type: string
+        required: true
+      tag-prefix:
+        description: >-
+          Git tag prefix identifying releases of this image, e.g.
+          `ai-code-review-` for the tag `ai-code-review-v1.2.0`. Used in a
+          regex, so it must not contain regex metacharacters.
+        type: string
+        default: ''
+      platforms:
+        description: Target platforms. Keep to amd64 unless the image is built for more.
+        type: string
+        default: linux/amd64
+      smoke-test:
+        description: >-
+          Path to an executable inside the image that verifies it. Empty skips
+          the test, which also skips the only thing standing between a broken
+          build and a published tag.
+        type: string
+        default: /smoke-test.sh
+      push:
+        description: Push after the smoke test passes. Off for pull requests.
+        type: boolean
+        default: true
+    outputs:
+      digest:
+        description: Digest of the pushed image, for pinning by consumers.
+        value: ${{ jobs.build.outputs.digest }}
+      tags:
+        description: Newline-separated list of tags that were pushed.
+        value: ${{ jobs.build.outputs.tags }}
+
+# Not a security boundary — a called workflow can only reduce the caller's
+# grant, so `packages: write` has to be granted by the caller too.
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    name: Build and push
+    runs-on: ubuntu-latest
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
+      tags: ${{ steps.meta.outputs.tags }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Derive tags
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ inputs.image }}
+          # type=match, not type=semver: semver refuses a prefixed tag, so
+          # `ai-code-review-v1.2.0` would parse as nothing and silently publish
+          # no version tag at all. The regex strips the prefix to give 1.2.0,
+          # 1.2 and v1 — v1 being the moving tag consuming repos track.
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=sha-,format=short
+            type=match,pattern=${{ inputs.tag-prefix }}v(\d+\.\d+\.\d+),group=1
+            type=match,pattern=${{ inputs.tag-prefix }}v(\d+\.\d+),group=1
+            type=match,pattern=${{ inputs.tag-prefix }}(v\d+),group=1
+
+      # Loaded, not pushed. `candidate` is a local-only tag that never leaves
+      # the runner.
+      - name: Build
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: ${{ inputs.context }}
+          platforms: ${{ inputs.platforms }}
+          load: true
+          tags: candidate:local
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Inputs reach the shell as environment variables, never interpolated into
+      # the script body — a `${{ }}` inside `run:` is a script injection waiting
+      # for a caller to pass something with a quote in it.
+      - name: Smoke test
+        if: inputs.smoke-test != ''
+        env:
+          SMOKE_TEST: ${{ inputs.smoke-test }}
+        run: docker run --rm candidate:local "$SMOKE_TEST"
+
+      - name: Log in to GHCR
+        if: inputs.push
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Everything is in the layer cache from the build above, so this uploads
+      # rather than rebuilds.
+      - name: Push
+        id: push
+        if: inputs.push
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: ${{ inputs.context }}
+          platforms: ${{ inputs.platforms }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          provenance: true
+          sbom: true
+
+      - name: Report the digest
+        if: inputs.push
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+          IMAGE: ${{ inputs.image }}
+        run: |
+          {
+            echo "### Image pushed"
+            echo
+            echo '```'
+            printf '%s\n' "$TAGS"
+            echo
+            echo "digest: $DIGEST"
+            echo '```'
+            echo
+            echo "To pin it, use:"
+            echo
+            echo '```'
+            echo "${IMAGE}@${DIGEST}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
