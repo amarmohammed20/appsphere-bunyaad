@@ -5,6 +5,10 @@ export const sentryDsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
 // Unconfigured is silent, not broken — a fresh clone has no Sentry account.
 export const isSentryConfigured = Boolean(sentryDsn);
 
+// Without this Sentry labels everything `production`, so local noise lands in
+// the same bucket as real incidents.
+export const environment = process.env.NODE_ENV;
+
 // Traces are billed per event; errors are not.
 export const tracesSampleRate = process.env.NODE_ENV === 'development' ? 1 : 0.1;
 

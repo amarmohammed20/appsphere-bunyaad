@@ -3,6 +3,7 @@ import * as Sentry from '@sentry/nextjs';
 import {
   beforeSend,
   beforeSendTransaction,
+  environment,
   isSentryConfigured,
   sentryDsn,
   tracesSampleRate,
@@ -11,6 +12,7 @@ import {
 Sentry.init({
   dsn: sentryDsn,
   enabled: isSentryConfigured,
+  environment,
   tracesSampleRate,
   beforeSend,
   beforeSendTransaction,

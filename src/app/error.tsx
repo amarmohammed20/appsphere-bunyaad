@@ -11,10 +11,12 @@ export default function Error({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  // Next reports only its own built-in boundaries, so an explicit one is
-  // silent unless it reports itself.
+  // A digest means the server already reported this through onRequestError;
+  // capturing again would file every server error twice.
   useEffect(() => {
-    Sentry.captureException(error);
+    if (error.digest === undefined) {
+      Sentry.captureException(error);
+    }
   }, [error]);
 
   return (

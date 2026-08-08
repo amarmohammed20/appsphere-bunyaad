@@ -13,9 +13,12 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  // A root-layout failure is client-side, so onRequestError never sees it.
+  // A digest means the server already reported this through onRequestError;
+  // capturing again would file every server error twice.
   useEffect(() => {
-    Sentry.captureException(error);
+    if (error.digest === undefined) {
+      Sentry.captureException(error);
+    }
   }, [error]);
 
   return (
