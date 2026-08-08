@@ -1,0 +1,46 @@
+# Publishes the AI code review image.
+#   PR touching docker/**  → build + smoke test, never push
+#   push to main           → :main and :sha-<short>
+#   tag ai-code-review-v*  → 1.2.0, 1.2, v1  (v1 is the moving tag consumers track)
+# Consuming repos inherit this file but don't need it — ai-code-review.yml
+# defaults to bunyaad's image, so delete it there.
+name: Release image
+
+on:
+  pull_request:
+    paths:
+      - 'docker/ai-code-review/**'
+      - '.github/workflows/release-image.yml'
+      - '.github/workflows/release-image-reusable.yml'
+  push:
+    # TEMPORARY (shakedown): publish a candidate image from this branch so the
+    # review job can be tested before merge. Remove before merging (step 4).
+    branches: [main, feat/ai-code-review-ci]
+    paths:
+      - 'docker/ai-code-review/**'
+      - '.github/workflows/release-image.yml'
+      - '.github/workflows/release-image-reusable.yml'
+    tags:
+      - 'ai-code-review-v*'
+  workflow_dispatch:
+
+concurrency:
+  group: release-image-${{ github.ref }}
+  cancel-in-progress: true
+
+# packages: write must be granted here — a called workflow can only lower it.
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  release-image:
+    uses: ./.github/workflows/release-image-reusable.yml
+    with:
+      context: docker/ai-code-review
+      image: ghcr.io/${{ github.repository }}/ai-code-review
+      # The `v` belongs to the version, not the prefix, so v1 is derivable.
+      tag-prefix: ai-code-review-
+      smoke-test: /smoke-test.sh
+      # Never push from a pull request.
+      push: ${{ github.event_name != 'pull_request' }}

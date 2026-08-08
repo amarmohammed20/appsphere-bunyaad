@@ -1,0 +1,131 @@
+# Reusable AI review: changed files go to one backend, findings are filtered
+# against git's hunks and posted as inline PR comments. See docs/reusable-workflows.md.
+name: AI Code Review (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      backend:
+        description: Which CLI reviews the diff — claude, codex or cursor.
+        type: string
+        default: claude
+      model:
+        description: Model override. Empty uses the backend's image default.
+        type: string
+        default: ''
+      image:
+        description: Review image. Pin to a digest for a reproducible run.
+        type: string
+        default: ghcr.io/amarmohammed20/appsphere-bunyaad/ai-code-review:v1
+      timeout-minutes:
+        description: Ceiling on the whole job, including the model call.
+        type: number
+        default: 20
+      review-timeout:
+        description: Ceiling on the model call alone, in seconds.
+        type: number
+        default: 600
+      exclude-paths:
+        description: Extra comma-separated globs to exclude, on top of the defaults.
+        type: string
+        default: ''
+    secrets:
+      ANTHROPIC_API_KEY:
+        description: Required when backend is claude.
+        required: false
+      CODEX_API_KEY:
+        description: Required when backend is codex.
+        required: false
+      CURSOR_API_KEY:
+        description: Required when backend is cursor.
+        required: false
+
+# Must be granted by the caller too — a called workflow can only lower it.
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    name: Review
+    # Fork PRs are skipped: read-only token, no secrets, so nothing to run or post.
+    if: github.event.pull_request.head.repo.fork != true
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    container:
+      image: ${{ inputs.image }}
+    # Container jobs don't run with HOME=/root, which would orphan the baked
+    # cursor/codex configs. Job-wide so safe.directory (written to $HOME/.gitconfig
+    # by one step, read by another) stays consistent.
+    env:
+      HOME: /root
+    steps:
+      # TEMPORARY (shakedown): key guard commented out so the container-job
+      # runtime can run before any secret exists. With no key the model call
+      # fails silently and the job goes green with zero findings — plumbing only.
+      # Restore before tagging v1.
+      # - name: Check the backend has a key
+      #   env:
+      #     BACKEND: ${{ inputs.backend }}
+      #     ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      #     CODEX_API_KEY: ${{ secrets.CODEX_API_KEY }}
+      #     CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+      #   run: |
+      #     case "$BACKEND" in
+      #       claude) key="$ANTHROPIC_API_KEY"; name=ANTHROPIC_API_KEY ;;
+      #       codex)  key="$CODEX_API_KEY";     name=CODEX_API_KEY ;;
+      #       cursor) key="$CURSOR_API_KEY";    name=CURSOR_API_KEY ;;
+      #       *) echo "::error::backend must be claude, codex or cursor (got '$BACKEND')"; exit 1 ;;
+      #     esac
+      #     if [ -z "$key" ]; then
+      #       echo "::error::backend is '$BACKEND' but $name was not passed to this workflow."
+      #       echo "::error::Add it under \`secrets:\` in the calling workflow. Do not use \`secrets: inherit\`."
+      #       exit 1
+      #     fi
+      #     echo "Backend '$BACKEND' has its key."
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Every hunk is computed from the merge base; a shallow clone has none.
+          fetch-depth: 0
+
+      # The workspace is owned by the runner, not the container user, so git
+      # refuses it until it is marked safe.
+      - name: Trust the workspace
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      # GITHUB_TOKEN is here to cross-check the PR files API. run_review strips it
+      # from the agent's env — the diff is untrusted and must not see a write token.
+      - name: Review the diff
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REVIEW_BACKEND: ${{ inputs.backend }}
+          REVIEW_MODEL: ${{ inputs.model }}
+          REVIEW_TIMEOUT: ${{ inputs.review-timeout }}
+          REVIEW_EXCLUDE_PATHS: ${{ inputs.exclude-paths }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CODEX_API_KEY: ${{ secrets.CODEX_API_KEY }}
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+        run: python3 /scripts/run_review.py
+
+      - name: Post the review
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          REVIEW_BACKEND: ${{ inputs.backend }}
+        run: python3 /scripts/publish_review.py
+
+      # Kept on failure too: on a timeout the manifest is the only record of what
+      # was reviewed, and the report holds any finding the comment cap left unposted.
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: code-review-report-${{ inputs.backend }}
+          path: |
+            code_review_report.json
+            review_manifest.json
+          if-no-files-found: warn
+          retention-days: 7

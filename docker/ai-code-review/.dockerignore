@@ -1,0 +1,10 @@
+# Local bytecode — shipping it means stale .pyc from the dev's interpreter.
+__pycache__/
+*.py[cod]
+
+# Local test debris.
+code_review_report.json
+review_manifest.json
+.pytest_cache/
+.ruff_cache/
+.venv/

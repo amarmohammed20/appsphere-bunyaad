@@ -44,3 +44,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# python bytecode from docker/ai-code-review/src, written whenever those
+# scripts are run or imported locally
+__pycache__/
+*.py[cod]

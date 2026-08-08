@@ -1,0 +1,31 @@
+# Bunyaad running its own reusable review workflow. See docs/reusable-workflows.md.
+name: AI Code Review
+
+on:
+  pull_request:
+    # ready_for_review so drafts are skipped, not reviewed on every WIP push.
+    types: [opened, synchronize, reopened, ready_for_review]
+
+# Each push replaces the previous review; cancel the run posting the stale one.
+concurrency:
+  group: ai-code-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+# pull-requests: write lets findings land as comments. No contents: write, so a
+# compromised image reviewing a hostile diff still cannot push here.
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  ai-code-review:
+    if: github.event.pull_request.draft == false
+    uses: ./.github/workflows/ai-code-review-reusable.yml
+    with:
+      # claude, codex or cursor — all three are in the image.
+      backend: claude
+      # TEMPORARY
+      image: ghcr.io/amarmohammed20/appsphere-bunyaad/ai-code-review:feat-ai-code-review-ci
+    # Named secrets, never `secrets: inherit`. Only the chosen backend needs one.
+    secrets:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
