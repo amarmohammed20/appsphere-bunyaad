@@ -27,12 +27,10 @@ export function PasswordStrength({ value }: { value: string }) {
 
   const score = scorePassword(value);
 
-  let filledColor = 'bg-emerald-500';
-  if (score <= 1) {
-    filledColor = 'bg-red-400';
-  } else if (score === 2) {
-    filledColor = 'bg-amber-400';
-  }
+  // Raw colours: the theme has no success or warning token, and a meter needs
+  // three distinct states. Indexed by score so weak/medium/strong stay adjacent.
+  const filledColor =
+    ['bg-red-400', 'bg-red-400', 'bg-amber-400', 'bg-emerald-500'][score] ?? 'bg-emerald-500';
 
   return (
     <div className="fade-up flex items-center gap-2" aria-live="polite">
@@ -41,14 +39,12 @@ export function PasswordStrength({ value }: { value: string }) {
           <span
             key={segment}
             className={`h-1 flex-1 rounded-full transition-colors duration-300 ${
-              score >= segment ? filledColor : 'bg-zinc-200 dark:bg-zinc-800'
+              score >= segment ? filledColor : 'bg-muted'
             }`}
           />
         ))}
       </div>
-      <span className="text-xs text-zinc-500 tabular-nums dark:text-zinc-400">
-        {STRENGTH_LABELS[score]}
-      </span>
+      <span className="text-muted-foreground text-xs tabular-nums">{STRENGTH_LABELS[score]}</span>
     </div>
   );
 }

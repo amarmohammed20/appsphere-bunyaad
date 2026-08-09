@@ -1,4 +1,8 @@
 export const usersLabels = {
+  confirmRemoveTitle: 'Remove',
+  confirmRemoveBody:
+    'They lose access immediately. Their sign-in still exists, so an admin can restore them later.',
+  cancel: 'Cancel',
   heading: 'Team',
   lead: 'Everyone with an account, and what they may do.',
   nameField: 'Full name',

@@ -73,6 +73,14 @@ const eslintConfig = defineConfig([
     },
   },
 
+  // shadcn generates these and regenerates them on every `add`, so ordering
+  // them by hand is churn that comes straight back. Style only — a correctness
+  // rule firing here means fixing the component, not widening this list.
+  {
+    files: ['src/components/ui/**'],
+    rules: { 'import/order': 'off' },
+  },
+
   // Must come last — disables every rule that would conflict with Prettier.
   prettier,
 

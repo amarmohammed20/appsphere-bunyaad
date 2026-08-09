@@ -27,5 +27,14 @@ pnpm exec lint-staged --quiet || {
   exit 1
 }
 
+# Whole-repo, not staged-only — it reads the filesystem and takes under a
+# second. CI runs it too; this is only the faster loop.
+echo "${DIM}  Checking colours come from tokens...${RESET}"
+node scripts/check-raw-colours.mjs >/dev/null 2>&1 || {
+  echo ""
+  node scripts/check-raw-colours.mjs
+  exit 1
+}
+
 echo "${GREEN}✓ All pre-commit checks passed${RESET}"
 exit 0

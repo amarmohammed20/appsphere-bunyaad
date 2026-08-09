@@ -357,12 +357,14 @@ adopted, give it a pointer to `CLAUDE.md` rather than a copy.
 
 - [ ] Add `overflow-x-hidden` to `<body>`
 - [ ] Use `min-h-dvh` in layouts
-- [ ] Document 44x44px minimum touch target rule
+- [x] 44px minimum touch target — enforced in the components, not documented:
+      button/input/select default to h-11. See src/components/ui/README.md
 - [ ] Document no hover-only interactions rule
 - [ ] Document mobile-first Tailwind breakpoint order
 - [ ] Document form input rules (16px minimum, type, autocomplete)
 - [ ] Document real-device testing requirement
-- [ ] Add base input component meeting mobile rules
+- [x] Add base input component meeting mobile rules — h-11, `text-base md:text-sm`
+      so iOS does not zoom on focus
 
 ## 18. Runtime security
 
@@ -439,12 +441,17 @@ Still open:
 
 ## 20. UI
 
-- [ ] Init shadcn/ui and `components.json`
-- [ ] Add base shadcn components
-- [ ] Set up Tailwind v4 theme tokens in `globals.css`
-- [ ] Add dark mode support
-- [ ] Add fonts setup
-- [ ] Document which components are shared vs feature-owned
+- [x] Colours come from semantic tokens, never raw palette classes. Enforced by
+      `pnpm check:colours`, which runs in CI before install. The migration that
+      introduced this rule missed four occurrences, which is why it is a command
+      and not a paragraph.
+
+- [x] Init shadcn/ui and `components.json` — Radix base, Nova preset, Tailwind v4
+- [x] Add base shadcn components — only what is used; see src/components/ui/README.md
+- [x] Set up Tailwind v4 theme tokens in `globals.css` — OKLCH, `@theme inline`
+- [x] Add dark mode support — next-themes, class-based, defaults to system
+- [x] Add fonts setup — Geist wired to `--font-sans`
+- [x] Document which components are shared vs feature-owned — src/features/README.md
 
 ## 20a. SEO
 
