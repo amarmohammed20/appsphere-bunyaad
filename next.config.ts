@@ -1,3 +1,5 @@
+import { withSentryConfig } from '@sentry/nextjs';
+
 import type { NextConfig } from 'next';
 
 /**
@@ -30,4 +32,15 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Wraps, does not replace — the headers above still apply. Source maps upload
+// only when SENTRY_AUTH_TOKEN is set, which CI deliberately does not set.
+export default withSentryConfig(nextConfig, {
+  // From the environment: the Vercel integration sets these per project, so a
+  // clone needs no edit and cannot upload its source maps to bunyaad.
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  silent: !process.env.CI,
+  // Without it a stack trace points at a Next internal chunk, not our source.
+  widenClientFileUpload: true,
+});

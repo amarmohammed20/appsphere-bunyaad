@@ -1,6 +1,9 @@
 import 'server-only';
 
+import * as Sentry from '@sentry/nextjs';
+
 import { isSupabaseConfigured } from '@/lib/env';
+import { reportError } from '@/lib/sentry/reportError';
 import { createSupabaseClient } from '@/lib/supabase/createSupabaseClient';
 
 export type SessionRole = 'admin' | 'member';
@@ -29,7 +32,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   if (user === null) {
     // A wrong anon key would otherwise present as everyone quietly signed out.
     if (error !== null && error.name !== 'AuthSessionMissingError') {
-      console.error('getSessionUser auth failure', { code: error.code, name: error.name });
+      reportError('getSessionUser auth failure', error, { action: 'getSessionUser' });
     }
 
     return null;
@@ -42,11 +45,10 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     .maybeSingle();
 
   if (profile === null || (profile.role !== 'admin' && profile.role !== 'member')) {
-    // Same reason as the log above: a valid session with no usable profile row
-    // presents as "signed out everywhere" with nothing to search for. Returning
-    // null rather than throwing keeps one broken row from taking down the app,
-    // but it must not be silent.
-    console.error('getSessionUser found no usable profile', {
+    // A valid session with no usable profile row looks like "signed out
+    // everywhere" to the user, and like nothing at all in the logs.
+    reportError('getSessionUser found no usable profile', new Error('No usable profile'), {
+      action: 'getSessionUser',
       userId: user.id,
       profileMissing: profile === null,
       role: profile?.role,
@@ -55,12 +57,18 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     return null;
   }
 
-  return {
+  const sessionUser: SessionUser = {
     id: user.id,
     email: user.email ?? '',
     fullName: profile.full_name,
     role: profile.role,
   };
+
+  // Id and role only: an email here is personal data held by a third party,
+  // and debugging never needs it.
+  Sentry.setUser({ id: sessionUser.id, role: sessionUser.role });
+
+  return sessionUser;
 }
 
 /** Signed in as anyone. Throws when nobody is signed in. */

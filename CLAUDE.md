@@ -107,11 +107,12 @@ and a written reason. See the end of
 
 ## More
 
-| Question                 | File                                                           |
-| ------------------------ | -------------------------------------------------------------- |
-| Where does this code go? | [src/features/README.md](src/features/README.md)               |
-| Why feature-first?       | [docs/folder-structure.md](docs/folder-structure.md)           |
-| How does CI work?        | [docs/reusable-workflows.md](docs/reusable-workflows.md)       |
-| Why these rules exist    | [docs/ai-code-quality.md](docs/ai-code-quality.md)             |
-| What db diff drops       | [docs/supabase-diff-caveats.md](docs/supabase-diff-caveats.md) |
-| What is planned          | [TODO.md](TODO.md)                                             |
+| Question                    | File                                                           |
+| --------------------------- | -------------------------------------------------------------- |
+| Where does this code go?    | [src/features/README.md](src/features/README.md)               |
+| Why feature-first?          | [docs/folder-structure.md](docs/folder-structure.md)           |
+| How does CI work?           | [docs/reusable-workflows.md](docs/reusable-workflows.md)       |
+| Why these rules exist       | [docs/ai-code-quality.md](docs/ai-code-quality.md)             |
+| What db diff drops          | [docs/supabase-diff-caveats.md](docs/supabase-diff-caveats.md) |
+| Sentry settings per project | [docs/sentry-setup.md](docs/sentry-setup.md)                   |
+| What is planned             | [TODO.md](TODO.md)                                             |

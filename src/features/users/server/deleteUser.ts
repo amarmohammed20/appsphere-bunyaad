@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { requireAdmin } from '@/lib/auth/session';
+import { reportError } from '@/lib/sentry/reportError';
 import { createSupabaseClient } from '@/lib/supabase/createSupabaseClient';
 
 import { usersLabels } from '../data/labels';
@@ -8,6 +9,7 @@ import { type UserMutationResult } from '../types';
 
 // Removes only the profile row — deleting the auth account needs the
 // service role key and belongs to an admin backend, not a request handler.
+
 export async function deleteUser(id: string): Promise<UserMutationResult> {
   const actor = await requireAdmin();
 
@@ -37,7 +39,7 @@ export async function deleteUser(id: string): Promise<UserMutationResult> {
   const { error } = await supabase.from('profiles').delete().eq('id', id);
 
   if (error) {
-    console.error('deleteUser failed', { code: error.code });
+    reportError('deleteUser failed', error, { action: 'deleteUser', targetId: id });
     return { ok: false, error: usersLabels.failure };
   }
 

@@ -24,6 +24,7 @@ It runs without a database. Supabase features stay off until you configure one.
    see [docs/reusable-workflows.md](docs/reusable-workflows.md).
 6. Protect `main` — pull request required, `pr-checks / Verify` required.
 7. Add project-specific rules to `CLAUDE.md`.
+8. Create the Sentry project — see [docs/sentry-setup.md](docs/sentry-setup.md).
 
 ## Commands
 

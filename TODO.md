@@ -322,16 +322,22 @@ adopted, give it a pointer to `CLAUDE.md` rather than a copy.
 
 ## 15. Observability
 
-- [ ] Add Sentry via wizard
-- [ ] Add `sentry.client.config.ts`
-- [ ] Add `sentry.server.config.ts`
-- [ ] Add `sentry.edge.config.ts`
-- [ ] Add `Sentry.setUser()` in auth flow
-- [ ] Add `components/ErrorBoundary.tsx`
-- [ ] Wrap root layout in ErrorBoundary
+- [x] Add Sentry — manually, not via the wizard: it rewrites next.config.ts,
+      which holds the security headers. See docs/sentry-setup.md
+- [x] Add `instrumentation-client.ts` — replaces the old sentry.client.config.ts
+- [x] Add `sentry.server.config.ts` + `instrumentation.ts` with onRequestError
+- [x] Add `sentry.edge.config.ts` — proxy.ts runs in this runtime
+- [x] Add `Sentry.setUser()` in getSessionUser — id and role only, never email
+- [x] Error boundaries are the Next file conventions, not a component:
+      app/error.tsx and app/global-error.tsx
+- [x] global-error.tsx covers the root layout — it replaces it, so it brings
+      its own html/body and stylesheet
 - [ ] Document Sentry alert rules
-- [ ] Configure Sentry data scrubbing for PII
-- [ ] Add Pino + `lib/logger.ts`
+- [x] Configure Sentry PII scrubbing — sendDefaultPii false, sendClientReports
+      false, beforeSend strips Authorization/Cookie and drops NEXT_NOT_FOUND
+- [ ] Add Pino + `lib/logger.ts` — deliberately deferred. Sentry captures
+      errors; a second logging library earns its place when there are
+      structured server logs worth shipping
 - [ ] Document log levels and `LOG_LEVEL` per environment
 - [ ] Document what never to log
 - [ ] Ban `console.log` in server code via lint rule
@@ -602,8 +608,9 @@ Deferred:
 
 ## 24. Error handling
 
-- [ ] Add global error boundary
-- [ ] Add `app/error.tsx` and `app/not-found.tsx`
+- [x] Add global error boundary — app/global-error.tsx
+- [x] Add `app/error.tsx` and `app/not-found.tsx` (Next 16 passes retry(), not
+      reset() — anything using reset renders a dead button)
 - [ ] Add typed Result/error pattern for helpers
 - [ ] Add central error classes
 - [ ] Rule: generic errors to client, full detail to Sentry

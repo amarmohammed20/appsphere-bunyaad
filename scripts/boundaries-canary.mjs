@@ -12,7 +12,7 @@ const CASES = [
     name: 'component imports a query',
     rule: 'boundaries/dependencies',
     path: 'src/features/users/components/__canary.tsx',
-    code: `import { listUsers } from '../server/queries';\nexport const a = listUsers;\n`,
+    code: `import { listUsers } from '../server/listUsers';\nexport const a = listUsers;\n`,
   },
   {
     name: 'feature imports another feature',

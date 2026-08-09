@@ -42,7 +42,7 @@ Import the file you want, directly:
 
 ```ts
 import { UsersTable } from '@/features/users/components/UsersTable';
-import { listUsers } from '@/features/users/server/queries';
+import { listUsers } from '@/features/users/server/listUsers';
 ```
 
 Not an `index.ts` that re-exports everything. Reasons:
@@ -84,10 +84,11 @@ the error boundary — nothing sensible can be rendered without the data. A
 failed write returns `{ ok: false, error }`, because the form needs to show it
 and stay on screen. Follow the same split in every feature.
 
-**One file per write, named after the verb.** `createUser.ts`,
-`updateUserRole.ts`, `deleteUser.ts`. Reads are grouped in `queries.ts` because
-they share shape; writes are not, because each one owns its own rules and gets
-called from more than one place.
+**One file per operation, named after it.** `listUsers.ts`, `updateUserRole.ts`,
+`deleteUser.ts`. Reads follow the same rule as writes — a `queries.ts` grab-bag
+leaves the folder with two conventions and grows until nobody can find anything.
+Helpers used by one operation stay private in its file; extract them only when a
+second operation needs them.
 
 **Revalidate where data is displayed, not where it was written.** A write on
 one page that only appears on another revalidates the latter.
@@ -97,7 +98,7 @@ one page that only appears on another revalidates the latter.
 | Thing                          | Location                                               |
 | ------------------------------ | ------------------------------------------------------ |
 | A form component               | `components/`                                          |
-| Reading from the database      | `server/queries.ts`                                    |
+| Reading from the database      | a plain function in `server/`                          |
 | Writing to the database        | a plain function in `server/`                          |
 | A mutation a component calls   | `actions/`                                             |
 | Validation                     | `schemas/`                                             |
@@ -152,7 +153,7 @@ export { GET } from '@/features/users/api/listUsers';
 ```tsx
 // app/users/page.tsx
 import { UsersTable } from '@/features/users/components/UsersTable';
-import { listUsers } from '@/features/users/server/queries';
+import { listUsers } from '@/features/users/server/listUsers';
 
 export default async function UsersPage() {
   const users = await listUsers();
