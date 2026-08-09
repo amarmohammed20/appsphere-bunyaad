@@ -2,7 +2,7 @@ import 'server-only';
 
 import { createSupabaseClient } from '@/lib/supabase/createSupabaseClient';
 
-import { type EmailLinkType } from '../data/constants';
+import { type EmailLinkType } from '../types';
 
 export async function verifyEmailToken(tokenHash: string, type: EmailLinkType): Promise<boolean> {
   const supabase = await createSupabaseClient();

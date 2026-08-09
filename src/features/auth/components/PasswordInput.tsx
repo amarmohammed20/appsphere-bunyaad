@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 
-import { inputClasses } from './inputClasses';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 /** Password input with a show/hide toggle. Never make the user guess. */
 export function PasswordInput({
@@ -20,23 +21,24 @@ export function PasswordInput({
 
   return (
     <div className="relative">
-      <input
+      <Input
         name={name}
         type={visible ? 'text' : 'password'}
         autoComplete={autoComplete}
         required
         aria-invalid={invalid}
         onChange={(event) => onValueChange?.(event.target.value)}
-        className={`${inputClasses} pr-16`}
+        className="pr-16"
       />
-      <button
+      <Button
         type="button"
+        variant="ghost"
         onClick={() => setVisible((current) => !current)}
         aria-pressed={visible}
-        className="absolute inset-y-0 right-0 px-3 text-xs font-medium text-zinc-400 transition hover:text-zinc-900 focus-visible:text-zinc-900 dark:hover:text-zinc-100 dark:focus-visible:text-zinc-100"
+        className="text-muted-foreground absolute top-1/2 right-1 -translate-y-1/2 text-xs"
       >
         {visible ? 'Hide' : 'Show'}
-      </button>
+      </Button>
     </div>
   );
 }

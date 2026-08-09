@@ -27,7 +27,8 @@
     "check:db-push-candidate": "node scripts/db/check-db-push-candidate.mjs",
     "check:rls": "node scripts/db/check-rls.mjs",
     "verify:db-reset": "node scripts/db/verify-reset-db.mjs",
-    "check:schema-matches-migrations": "node scripts/db/check-schema-matches-migrations.mjs"
+    "check:schema-matches-migrations": "node scripts/db/check-schema-matches-migrations.mjs",
+    "check:colours": "node scripts/check-raw-colours.mjs"
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx,mjs,cjs}": [
@@ -42,9 +43,17 @@
     "@sentry/nextjs": "10.69.0",
     "@supabase/ssr": "0.12.4",
     "@supabase/supabase-js": "2.111.0",
+    "class-variance-authority": "0.7.1",
+    "clsx": "2.1.1",
+    "lucide-react": "1.28.0",
     "next": "16.2.12",
+    "next-themes": "0.4.6",
+    "radix-ui": "1.6.7",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "shadcn": "4.16.1",
+    "tailwind-merge": "3.6.0",
+    "tw-animate-css": "1.4.0",
     "zod": "4.4.3"
   },
   "devDependencies": {

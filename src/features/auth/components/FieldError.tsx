@@ -6,7 +6,7 @@ export function FieldError({ messages }: { messages: string[] | undefined }) {
   }
 
   return (
-    <span role="alert" className="fade-up text-sm text-red-600 dark:text-red-400">
+    <span role="alert" className="fade-up text-destructive text-sm">
       {messages[0]}
     </span>
   );

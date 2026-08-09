@@ -2,6 +2,8 @@
 
 import { type ReactNode } from 'react';
 
+import { Label } from '@/components/ui/label';
+
 import { FieldError } from './FieldError';
 
 export function Field({
@@ -16,13 +18,13 @@ export function Field({
   children: ReactNode;
 }) {
   return (
-    <label className="flex flex-col gap-1.5">
+    <Label className="flex flex-col items-stretch gap-1.5">
       <span className="flex items-baseline justify-between">
-        <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{label}</span>
+        <span className="text-sm font-medium">{label}</span>
         {hint}
       </span>
       {children}
       <FieldError messages={error} />
-    </label>
+    </Label>
   );
 }

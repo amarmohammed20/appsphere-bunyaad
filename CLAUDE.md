@@ -17,10 +17,10 @@ pnpm only. `npm install` and `yarn` are blocked.
 ## Before you say you are done
 
 ```bash
-pnpm lint && pnpm type-check && pnpm format:check && pnpm build
+pnpm lint && pnpm type-check && pnpm format:check && pnpm check:colours && pnpm build
 ```
 
-All four must pass. `pnpm lint:fix` and `pnpm format` fix most failures.
+All five must pass. `pnpm lint:fix` and `pnpm format` fix most failures.
 
 ## Structure
 
@@ -41,6 +41,33 @@ The rules you will hit most:
 - `data/` holds compile-time literals only.
 - No barrel files. Import the file you want.
 - No top-level `helpers/` or `utils/`.
+
+## Colours come from tokens
+
+Never write a palette colour in a component — no `bg-zinc-900`, no
+`text-red-500`. Use the semantic token:
+
+| Instead of                         | Write                   |
+| ---------------------------------- | ----------------------- |
+| `bg-zinc-900`                      | `bg-primary`            |
+| `bg-zinc-50 dark:bg-zinc-950`      | `bg-background`         |
+| `text-zinc-900 dark:text-zinc-100` | `text-foreground`       |
+| `text-zinc-500 dark:text-zinc-400` | `text-muted-foreground` |
+| `border-zinc-200`                  | `border-border`         |
+| `text-red-600`                     | `text-destructive`      |
+
+Two reasons. Re-theming for a client becomes six variables in `globals.css`
+rather than hunting class names across every file. And the `dark:` half
+disappears, because the token already holds both values.
+
+`pnpm check:colours` fails the build on a violation, and runs in CI before
+install. If a raw colour is genuinely right — a strength meter needs red and
+amber, and there is no success or warning token yet — put a comment starting
+`Raw colours:` within three lines above it.
+
+An always-dark panel does not need raw colours either: put `dark` on the
+element and every token inside it resolves to its dark value. See
+`src/app/(auth)/layout.tsx`.
 
 ## Naming
 
@@ -107,12 +134,13 @@ and a written reason. See the end of
 
 ## More
 
-| Question                    | File                                                           |
-| --------------------------- | -------------------------------------------------------------- |
-| Where does this code go?    | [src/features/README.md](src/features/README.md)               |
-| Why feature-first?          | [docs/folder-structure.md](docs/folder-structure.md)           |
-| How does CI work?           | [docs/reusable-workflows.md](docs/reusable-workflows.md)       |
-| Why these rules exist       | [docs/ai-code-quality.md](docs/ai-code-quality.md)             |
-| What db diff drops          | [docs/supabase-diff-caveats.md](docs/supabase-diff-caveats.md) |
-| Sentry settings per project | [docs/sentry-setup.md](docs/sentry-setup.md)                   |
-| What is planned             | [TODO.md](TODO.md)                                             |
+| Question                                 | File                                                           |
+| ---------------------------------------- | -------------------------------------------------------------- |
+| Where does this code go?                 | [src/features/README.md](src/features/README.md)               |
+| Why feature-first?                       | [docs/folder-structure.md](docs/folder-structure.md)           |
+| How does CI work?                        | [docs/reusable-workflows.md](docs/reusable-workflows.md)       |
+| Why these rules exist                    | [docs/ai-code-quality.md](docs/ai-code-quality.md)             |
+| What db diff drops                       | [docs/supabase-diff-caveats.md](docs/supabase-diff-caveats.md) |
+| Sentry settings per project              | [docs/sentry-setup.md](docs/sentry-setup.md)                   |
+| Why the UI components differ from shadcn | [src/components/ui/README.md](src/components/ui/README.md)     |
+| What is planned                          | [TODO.md](TODO.md)                                             |

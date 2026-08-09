@@ -4,13 +4,14 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 
+import { Input } from '@/components/ui/input';
+
 import { signIn } from '../actions/signIn';
 import { authLabels } from '../data/labels';
 import { type AuthResult } from '../types';
 
 import { Field } from './Field';
 import { FormError } from './FormError';
-import { inputClasses } from './inputClasses';
 import { PasswordInput } from './PasswordInput';
 import { SubmitButton } from './SubmitButton';
 
@@ -38,14 +39,13 @@ export function SignInForm({ next }: { next: string }) {
     <form action={handleSubmit} className="flex flex-col gap-4">
       <div className="fade-up fade-up-delay-1">
         <Field label={authLabels.emailField} error={fieldErrors?.email}>
-          <input
+          <Input
             name="email"
             type="email"
             autoComplete="email"
             autoFocus
             required
             aria-invalid={fieldErrors?.email !== undefined}
-            className={inputClasses}
           />
         </Field>
       </div>
@@ -57,7 +57,7 @@ export function SignInForm({ next }: { next: string }) {
           hint={
             <Link
               href="/reset-password"
-              className="text-sm text-zinc-400 transition hover:text-zinc-900 dark:hover:text-zinc-100"
+              className="text-muted-foreground hover:text-foreground text-sm transition"
             >
               {authLabels.forgotPassword}
             </Link>
@@ -78,12 +78,9 @@ export function SignInForm({ next }: { next: string }) {
           {authLabels.signIn}
         </SubmitButton>
 
-        <p className="text-center text-sm text-zinc-500 dark:text-zinc-400">
+        <p className="text-muted-foreground text-center text-sm">
           {authLabels.toSignUp}{' '}
-          <Link
-            href="/sign-up"
-            className="font-medium text-zinc-900 transition hover:underline dark:text-zinc-100"
-          >
+          <Link href="/sign-up" className="text-foreground font-medium transition hover:underline">
             {authLabels.toSignUpLink}
           </Link>
         </p>

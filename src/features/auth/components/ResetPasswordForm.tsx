@@ -1,7 +1,10 @@
 'use client';
 
+import { CheckIcon } from 'lucide-react';
 import Link from 'next/link';
 import { useState, useTransition } from 'react';
+
+import { Input } from '@/components/ui/input';
 
 import { requestPasswordReset } from '../actions/requestPasswordReset';
 import { authLabels } from '../data/labels';
@@ -9,7 +12,6 @@ import { type AuthResult } from '../types';
 
 import { Field } from './Field';
 import { FormError } from './FormError';
-import { inputClasses } from './inputClasses';
 import { SubmitButton } from './SubmitButton';
 
 export function ResetPasswordForm() {
@@ -25,21 +27,15 @@ export function ResetPasswordForm() {
   if (result?.ok === true) {
     return (
       <div className="fade-up flex flex-col items-center gap-4 text-center">
+        {/* Raw colours: the theme has no success token. Add one before
+            reaching for emerald anywhere else. */}
         <span className="flex size-11 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400">
-          <svg aria-hidden viewBox="0 0 16 16" className="size-5" fill="none">
-            <path
-              d="M3 8.5 6.5 12 13 4.5"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
+          <CheckIcon aria-hidden className="size-5" />
         </span>
-        <p className="text-zinc-600 dark:text-zinc-300">{authLabels.resetSent}</p>
+        <p className="text-muted-foreground">{authLabels.resetSent}</p>
         <Link
           href="/sign-in"
-          className="text-sm font-medium text-zinc-900 transition hover:underline dark:text-zinc-100"
+          className="text-foreground text-sm font-medium transition hover:underline"
         >
           {authLabels.toSignInLink}
         </Link>
@@ -53,13 +49,12 @@ export function ResetPasswordForm() {
     <form action={handleSubmit} className="flex flex-col gap-4">
       <div className="fade-up fade-up-delay-1">
         <Field label={authLabels.emailField} error={fieldErrors?.email}>
-          <input
+          <Input
             name="email"
             type="email"
             autoComplete="email"
             required
             aria-invalid={fieldErrors?.email !== undefined}
-            className={inputClasses}
           />
         </Field>
       </div>
@@ -71,8 +66,8 @@ export function ResetPasswordForm() {
           {authLabels.sendReset}
         </SubmitButton>
 
-        <p className="text-center text-sm text-zinc-500 dark:text-zinc-400">
-          <Link href="/sign-in" className="transition hover:text-zinc-900 dark:hover:text-zinc-100">
+        <p className="text-muted-foreground text-center text-sm">
+          <Link href="/sign-in" className="hover:text-foreground transition">
             {authLabels.toSignInLink}
           </Link>
         </p>

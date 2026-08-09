@@ -2,6 +2,37 @@
 
 import { useState, useTransition } from 'react';
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { initialsOf } from '@/lib/initialsOf';
+
 import { deleteUser } from '../actions/deleteUser';
 import { updateUserRole } from '../actions/updateUserRole';
 import { USER_ROLES } from '../data/constants';
@@ -24,7 +55,11 @@ export function UsersTable({ users, currentUserId }: { users: User[]; currentUse
   }
 
   if (users.length === 0) {
-    return <p className="text-zinc-500 dark:text-zinc-400">{usersLabels.empty}</p>;
+    return (
+      <div className="border-border rounded-xl border border-dashed p-12 text-center">
+        <p className="text-muted-foreground">{usersLabels.empty}</p>
+      </div>
+    );
   }
 
   return (
@@ -32,78 +67,118 @@ export function UsersTable({ users, currentUserId }: { users: User[]; currentUse
       {error !== null && (
         <p
           role="alert"
-          className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"
+          className="border-destructive/30 bg-destructive/10 text-destructive rounded-lg border px-3 py-2 text-sm"
         >
           {error}
         </p>
       )}
 
-      <div className="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800">
-        <table className="w-full border-collapse text-left text-sm">
-          <thead>
-            <tr className="border-b border-zinc-200 bg-zinc-50 text-xs tracking-wide text-zinc-500 uppercase dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
-              <th className="px-4 py-3 font-medium">{usersLabels.nameField}</th>
-              <th className="px-4 py-3 font-medium">{usersLabels.emailField}</th>
-              <th className="px-4 py-3 font-medium">{usersLabels.roleField}</th>
-              <th className="px-4 py-3" />
-            </tr>
-          </thead>
-          <tbody>
+      <div className="border-border overflow-hidden rounded-xl border">
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="h-11">{usersLabels.nameField}</TableHead>
+              <TableHead className="hidden h-11 sm:table-cell">{usersLabels.emailField}</TableHead>
+              <TableHead className="h-11 w-40">{usersLabels.roleField}</TableHead>
+              <TableHead className="h-11 w-24" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {users.map((user) => {
               const isSelf = user.id === currentUserId;
 
               return (
-                <tr
-                  key={user.id}
-                  className="border-b border-zinc-100 last:border-0 dark:border-zinc-800/50"
-                >
-                  <td className="px-4 py-3 font-medium text-zinc-900 dark:text-zinc-100">
-                    {user.fullName}
-                    {isSelf && (
-                      <span className="ml-2 rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
-                        {usersLabels.you}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-zinc-600 dark:text-zinc-300">{user.email}</td>
-                  <td className="px-4 py-3">
-                    <select
+                <TableRow key={user.id}>
+                  <TableCell className="py-3">
+                    <div className="flex items-center gap-3">
+                      <Avatar className="size-9">
+                        <AvatarFallback className="text-xs font-semibold">
+                          {initialsOf(user.fullName)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0">
+                        <p className="flex items-center gap-2 truncate font-medium">
+                          {user.fullName}
+                          {isSelf && (
+                            <Badge variant="secondary" className="font-normal">
+                              {usersLabels.you}
+                            </Badge>
+                          )}
+                        </p>
+                        <p className="text-muted-foreground truncate text-xs sm:hidden">
+                          {user.email}
+                        </p>
+                      </div>
+                    </div>
+                  </TableCell>
+
+                  <TableCell className="text-muted-foreground hidden sm:table-cell">
+                    {user.email}
+                  </TableCell>
+
+                  <TableCell>
+                    <Select
                       value={user.role}
-                      // The no-self rule, surfaced up front.
+                      // The no-self rule, surfaced up front rather than as an error.
                       disabled={isPending || isSelf}
-                      onChange={(event) => {
+                      onValueChange={(value) => {
                         // find() narrows without a cast, which lint forbids.
-                        const role = USER_ROLES.find((known) => known === event.target.value);
+                        const role = USER_ROLES.find((known) => known === value);
 
                         if (role !== undefined) {
                           runMutation(() => updateUserRole(user.id, role));
                         }
                       }}
-                      className="rounded-lg border border-zinc-300 bg-transparent px-2 py-1.5 text-sm transition focus:border-zinc-900 focus:outline-none disabled:opacity-40 dark:border-zinc-700 dark:focus:border-zinc-100"
-                      aria-label={`${usersLabels.roleField}: ${user.fullName}`}
                     >
-                      {USER_ROLES.map((role) => (
-                        <option key={role} value={role}>
-                          {roleLabels[role]}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <button
-                      type="button"
-                      disabled={isPending || isSelf}
-                      onClick={() => runMutation(() => deleteUser(user.id))}
-                      className="rounded-lg px-2 py-1.5 text-sm text-red-600 transition hover:bg-red-50 disabled:opacity-40 dark:text-red-400 dark:hover:bg-red-950"
-                    >
-                      {usersLabels.delete}
-                    </button>
-                  </td>
-                </tr>
+                      <SelectTrigger
+                        className="w-full"
+                        aria-label={`${usersLabels.roleField}: ${user.fullName}`}
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {USER_ROLES.map((role) => (
+                          <SelectItem key={role} value={role}>
+                            {roleLabels[role]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
+
+                  <TableCell className="text-right">
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="sm" disabled={isPending || isSelf}>
+                          {usersLabels.delete}
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>
+                            {usersLabels.confirmRemoveTitle} {user.fullName}?
+                          </AlertDialogTitle>
+                          <AlertDialogDescription>
+                            {usersLabels.confirmRemoveBody}
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>{usersLabels.cancel}</AlertDialogCancel>
+                          <AlertDialogAction
+                            variant="destructive"
+                            onClick={() => runMutation(() => deleteUser(user.id))}
+                          >
+                            {usersLabels.delete}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </TableCell>
+                </TableRow>
               );
             })}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
     </div>
   );

@@ -6,4 +6,3 @@ export const MIN_PASSWORD_LENGTH = 8;
 // narrower than the SDK's own union. Widen it only when a flow that needs
 // another type is actually enabled.
 export const EMAIL_LINK_TYPES = ['recovery'] as const;
-export type EmailLinkType = (typeof EMAIL_LINK_TYPES)[number];

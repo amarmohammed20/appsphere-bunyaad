@@ -60,6 +60,13 @@ Revisit if imports ever get genuinely unwieldy.
 ## Rules
 
 - **Features never import other features.** Compose them in `app/`.
+- **Shared components never import a feature.** `components/shared/` is
+  reachable from everywhere, so an import from it into `features/` would couple
+  every project to one feature's implementation. Pass the feature's component in
+  as a slot instead — `AppHeader` takes `nav` and `actions` for exactly this
+  reason.
+- **Build on `components/ui/`, do not re-roll it.** A hand-written `<button>`
+  with its own class string is a second design system.
 - **Client Components never query Supabase.** They call a server action. There
   is no exception and no browser client to reach for — the session cookies are
   `HttpOnly`, so browser JavaScript cannot read them. See
@@ -104,6 +111,7 @@ one page that only appears on another revalidates the latter.
 | Validation                     | `schemas/`                                             |
 | Button text, headings, options | `data/labels.ts`                                       |
 | Magic numbers, status lists    | `data/constants.ts`                                    |
+| A type derived from a constant | `types.ts`                                             |
 | Formatting, parsing, mapping   | `utils/`                                               |
 | A webhook or public endpoint   | `api/`                                                 |
 | A test                         | next to the file it tests, `*.test.ts` (no runner yet) |
@@ -111,13 +119,24 @@ one page that only appears on another revalidates the latter.
 `data/` holds compile-time literals only. If a file in `data/` imports anything
 other than a type, it is in the wrong folder.
 
+**A type derived from a constant lives in `types.ts`, not beside the constant.**
+The literal is runtime, the type is not, and `types.ts` is the one place to look
+for a feature's types. Import the constant as a type to derive from it:
+
+```ts
+// features/auth/types.ts
+import { type EMAIL_LINK_TYPES } from './data/constants';
+
+export type EmailLinkType = (typeof EMAIL_LINK_TYPES)[number];
+```
+
 ## Outside a feature
 
 There is no top-level `helpers/` or `utils/`. One home per concept.
 
 | Folder               | Holds                                                                                          |
 | -------------------- | ---------------------------------------------------------------------------------------------- |
-| `components/ui/`     | shadcn primitives. Generated — do not hand-edit beyond shadcn conventions                      |
+| `components/ui/`     | shadcn primitives. Generated — see [its README](ui/README.md) before changing one              |
 | `components/shared/` | Hand-written composites used by two or more features                                           |
 | `lib/`               | Third-party wrappers, plus cross-cutting pure code with no domain meaning (`formatDate`, `cn`) |
 | `hooks/`             | Hooks used by two or more features                                                             |

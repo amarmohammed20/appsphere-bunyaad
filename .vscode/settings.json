@@ -4,6 +4,7 @@
   "editor.codeActionsOnSave": {
     "source.fixAll.eslint": "explicit"
   },
+  "json.schemaDownload.enable": true,
   "prettier.requireConfig": true,
   "files.eol": "\n",
 

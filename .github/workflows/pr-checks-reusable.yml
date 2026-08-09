@@ -58,6 +58,10 @@ jobs:
       - name: Actions are pinned to a commit
         run: node scripts/check-action-pinning.mjs
 
+      # Filesystem only, so it runs before install and fails in seconds.
+      - name: Colours come from tokens
+        run: node scripts/check-raw-colours.mjs
+
       # Before install, so a leaked key fails in seconds rather than minutes.
       # Guarded on the event as well: outside a pull request there is no base
       # SHA, and the action would silently switch to scanning all history.
