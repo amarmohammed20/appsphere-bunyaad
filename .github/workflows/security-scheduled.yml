@@ -1,0 +1,263 @@
+# ============================================================================
+# Scheduled security scans — run independently, never appear on a PR
+# ============================================================================
+# These watch main after the fact. The PR gate can only see what a PR contains;
+# these catch a repository that was clean yesterday and is not clean today,
+# whether that came from a merge, a direct push, or a newly published CVE.
+#
+# Every job feeds the alert job at the bottom, which opens a GitHub issue and
+# tags the owner. Without it a 3AM failure sends nothing but a quiet email to
+# whoever pushed last, which is exactly the moment nobody is watching.
+# ============================================================================
+
+name: 'Security: Scheduled Scans'
+
+# --------------------------------------------------------------------------
+# DISABLED (2026-07-29, per founder): automatic schedules are commented out,
+# so this workflow never runs on its own. It can still be run manually from
+# the Actions tab (workflow_dispatch) at any time. To re-enable the automatic
+# scans, uncomment the `schedule:` block below.
+# --------------------------------------------------------------------------
+on:
+  # schedule:
+  #   # Daily 03:00 UTC — pnpm audit for newly published vulnerabilities
+  #   - cron: "0 3 * * *"
+  #   # Daily 06:00 UTC — build config health check on main
+  #   - cron: "0 6 * * *"
+  #   # Weekly Monday 02:00 UTC — full history secret scan
+  #   - cron: "0 2 * * 1"
+  #   # Weekly Monday 05:00 UTC — container / filesystem scan
+  #   - cron: "0 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  issues: write
+
+concurrency:
+  group: security-scheduled
+  cancel-in-progress: false
+
+jobs:
+  # --------------------------------------------------------------------------
+  # Build config health check on main (daily 06:00)
+  # --------------------------------------------------------------------------
+  build-config-health:
+    name: Build Config Health Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2
+        with:
+          egress-policy: audit
+
+      - name: Checkout main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Verify build configs are clean
+        run: sh scripts/security/check-build-config.sh
+
+  # --------------------------------------------------------------------------
+  # pnpm audit (daily 03:00)
+  # --------------------------------------------------------------------------
+  npm-audit:
+    name: Dependency Vulnerability Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2
+        with:
+          egress-policy: audit
+
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install and audit
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm audit --audit-level=high --prod 2>&1 || {
+            echo "::error::High or critical vulnerabilities found in production dependencies"
+            exit 1
+          }
+          echo "No high/critical vulnerabilities"
+
+  # --------------------------------------------------------------------------
+  # Full secret scan (weekly Monday 02:00)
+  # --------------------------------------------------------------------------
+  secret-scan:
+    name: Full Secret Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2
+        with:
+          egress-policy: audit
+
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Gitleaks full scan
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: >-
+            detect
+            --source=.
+            --report-format=sarif
+            --report-path=gitleaks-report.sarif
+            --verbose
+
+      - name: TruffleHog full scan
+        uses: trufflesecurity/trufflehog@6f3c981e7b77f235fd2702dd74af25fc4b72bf11 # v3.96.0
+        with:
+          extra_args: >-
+            --only-verified
+            --results=verified,unknown
+
+  # --------------------------------------------------------------------------
+  # Container / filesystem scan (weekly Monday 05:00)
+  # --------------------------------------------------------------------------
+  container-scan:
+    name: Container & Trivy Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2
+        with:
+          egress-policy: audit
+
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Trivy filesystem scan
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'table'
+          severity: 'HIGH,CRITICAL'
+          ignore-unfixed: true
+          skip-dirs: '.next,coverage,cypress'
+          exit-code: '1'
+
+  # --------------------------------------------------------------------------
+  # Alert — the reason the jobs above are worth running
+  # --------------------------------------------------------------------------
+  # Reuses one issue per failing scan so a scan that fails every night does not
+  # file 30 issues, and closes nothing automatically: a human confirms recovery.
+  # --------------------------------------------------------------------------
+  alert-on-failure:
+    name: Raise Alert
+    runs-on: ubuntu-latest
+    needs: [build-config-health, npm-audit, secret-scan, container-scan]
+    if: failure()
+    timeout-minutes: 5
+    steps:
+      - name: Open or update alert issue
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          CONFIG_RESULT: ${{ needs.build-config-health.result }}
+          AUDIT_RESULT: ${{ needs.npm-audit.result }}
+          SECRET_RESULT: ${{ needs.secret-scan.result }}
+          CONTAINER_RESULT: ${{ needs.container-scan.result }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const runUrl = `https://github.com/${owner}/${repo}/actions/runs/${context.runId}`;
+
+            const jobs = [
+              { name: 'Build config health check on main', result: process.env.CONFIG_RESULT, critical: true },
+              { name: 'NPM vulnerability audit',           result: process.env.AUDIT_RESULT,  critical: false },
+              { name: 'Full secret scan',                  result: process.env.SECRET_RESULT, critical: true },
+              { name: 'Container & Trivy scan',            result: process.env.CONTAINER_RESULT, critical: false },
+            ];
+
+            const failed = jobs.filter(j => j.result === 'failure');
+            if (failed.length === 0) return;
+
+            const anyCritical = failed.some(j => j.critical);
+            const title = `Scheduled security scan failed: ${failed.map(j => j.name).join(', ')}`;
+
+            const body = [
+              anyCritical
+                ? '## Security alert — immediate attention required'
+                : '## Security alert',
+              '',
+              `A scheduled scan against \`main\` failed at ${new Date().toISOString()}.`,
+              '',
+              '| Scan | Result |',
+              '|------|--------|',
+              ...jobs.map(j => `| ${j.name} | ${j.result} |`),
+              '',
+              `[View the full run and logs](${runUrl})`,
+              '',
+              failed.some(j => j.name.startsWith('Build config'))
+                ? [
+                    '### Build config check failed — treat as a live incident',
+                    '',
+                    'A build config on `main` looks injected. Until it is confirmed clean:',
+                    '',
+                    '- Do NOT run `pnpm run build` or `pnpm run dev` — both execute these files.',
+                    '- Do NOT run `pnpm install` — the known payload re-injects on install.',
+                    '- Read the run log above to see which file and which check tripped.',
+                    '',
+                  ].join('\n')
+                : '',
+              `cc @amarmohammed20`,
+            ].join('\n');
+
+            const existing = await github.paginate(github.rest.issues.listForRepo, {
+              owner, repo, state: 'open', labels: 'security-alert', per_page: 100,
+            });
+
+            const match = existing.find(i => i.title === title);
+            if (match) {
+              await github.rest.issues.createComment({
+                owner, repo, issue_number: match.number,
+                body: `Failed again — [run ${context.runId}](${runUrl})`,
+              });
+              core.notice(`Updated existing alert issue #${match.number}`);
+              return;
+            }
+
+            // The label may not exist yet; create it once, ignore if it does.
+            try {
+              await github.rest.issues.createLabel({
+                owner, repo, name: 'security-alert', color: 'b60205',
+                description: 'Raised automatically by a failed scheduled security scan',
+              });
+            } catch (e) { /* already exists */ }
+
+            const issue = await github.rest.issues.create({
+              owner, repo, title, body, labels: ['security-alert'],
+              assignees: ['amarmohammed20'],
+            });
+            core.notice(`Opened alert issue #${issue.data.number}`);

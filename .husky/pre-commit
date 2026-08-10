@@ -1,5 +1,23 @@
 #!/bin/sh
 
+# ============================================================================
+# LOCAL GATE: Pre-commit
+# ============================================================================
+# Runs on every developer machine before code enters git history.
+#
+#   0. Signed-commit config      the ruleset on main rejects unsigned commits
+#   0.5 SSH remote               team policy: SSH, not HTTPS tokens
+#   1. lint-staged               formatting + linting
+#   2. Secret detection          stop credentials entering the repo
+#   3. Sensitive file alert      surface changes to files that control security
+#   4. Build config integrity    block the commit if a config looks injected
+#   5. Colours come from tokens  no raw palette classes outside the theme
+#
+# This hook deliberately does NOT run `pnpm run build`. CI runs it, and a hook
+# slow enough to be annoying trains people to reach for --no-verify, which
+# switches off the infection check along with everything else.
+# ============================================================================
+
 [ -n "$CI" ] && exit 0
 
 if [ -t 1 ] && [ -z "$NO_COLOR" ]; then
@@ -11,13 +29,50 @@ else
   GREEN='' RED='' DIM='' RESET=''
 fi
 
+echo "${DIM}Running pre-commit checks...${RESET}"
+
+# ---------------------------------------------------------------------------
+# 0. Signed-commit configuration
+# ---------------------------------------------------------------------------
+# The GitHub ruleset on main rejects unsigned commits server-side; failing
+# here saves you from discovering that after a day of unsigned work.
+# Setup: sh scripts/security/setup-signed-commits.sh
+# ---------------------------------------------------------------------------
+SIGN_ENABLED=$(git config --get commit.gpgsign || true)
+SIGN_KEY=$(git config --get user.signingkey || true)
+if [ "$SIGN_ENABLED" != "true" ] || [ -z "$SIGN_KEY" ]; then
+  echo ""
+  echo "${RED}  BLOCKED: commit signing is not configured in this clone.${RESET}"
+  echo "  All commits to this repo must be signed (docs/COMMIT-SIGNING-AND-SSH.md)."
+  echo "  Run:  sh scripts/security/setup-signed-commits.sh"
+  exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# 0.5 SSH remote
+# ---------------------------------------------------------------------------
+# Team policy: git access over SSH, not HTTPS tokens.
+# ---------------------------------------------------------------------------
+ORIGIN_URL=$(git remote get-url origin 2>/dev/null || true)
+case "$ORIGIN_URL" in
+  git@github.com:*|ssh://git@github.com/*) ;;
+  *)
+    echo ""
+    echo "${RED}  BLOCKED: this clone uses an HTTPS remote ($ORIGIN_URL).${RESET}"
+    echo "  Team policy is SSH (docs/COMMIT-SIGNING-AND-SSH.md, Step 3). Run:"
+    echo "    git remote set-url origin git@github.com:amarmohammed20/appsphere-bunyaad.git"
+    exit 1
+    ;;
+esac
+
+# ---------------------------------------------------------------------------
+# 1. lint-staged
+# ---------------------------------------------------------------------------
 if [ ! -x ./node_modules/.bin/lint-staged ]; then
   echo "${RED}✗ lint-staged is not installed in this worktree.${RESET}"
   echo "  Run 'pnpm install' before committing."
   exit 1
 fi
-
-echo "${DIM}Running pre-commit checks...${RESET}"
 
 echo "${DIM}  Linting and formatting staged files...${RESET}"
 pnpm exec lint-staged --quiet || {
@@ -27,6 +82,129 @@ pnpm exec lint-staged --quiet || {
   exit 1
 }
 
+# ---------------------------------------------------------------------------
+# 2. Secret detection
+# ---------------------------------------------------------------------------
+# Matches are reported by file and line only. Printing the matched text would
+# copy the secret into terminal scrollback and shell history.
+# ---------------------------------------------------------------------------
+echo "${DIM}  Scanning staged files for secrets...${RESET}"
+
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM)
+SECRET_FOUND=0
+
+report_secret() {
+  echo "${RED}  BLOCKED: $1 in $2 (line $3)${RESET}"
+  SECRET_FOUND=1
+}
+
+for file in $STAGED_FILES; do
+  case "$file" in
+    *.lock|*.png|*.jpg|*.jpeg|*.gif|*.ico|*.svg|*.webp|*.avif|*.woff|*.woff2|*.ttf|*.eot|pnpm-lock.yaml)
+      continue
+      ;;
+    .husky/*|scripts/security/*|.github/workflows/security-*)
+      # These files define the detection patterns. Scanning them for the very
+      # patterns they contain matches every time. Changes to them are still
+      # surfaced by the sensitive-file alert below and gated by CODEOWNERS.
+      continue
+      ;;
+  esac
+  [ -f "$file" ] || continue
+
+  LINES=$(grep -nE 'AKIA[0-9A-Z]{16}' "$file" 2>/dev/null | cut -d: -f1 | tr '\n' ',')
+  [ -n "$LINES" ] && report_secret "AWS access key" "$file" "$LINES"
+
+  LINES=$(grep -n -- '-----BEGIN.*PRIVATE KEY-----' "$file" 2>/dev/null | cut -d: -f1 | tr '\n' ',')
+  [ -n "$LINES" ] && report_secret "private key" "$file" "$LINES"
+
+  LINES=$(grep -nE 'sbp_[A-Za-z0-9]{32,}' "$file" 2>/dev/null | cut -d: -f1 | tr '\n' ',')
+  [ -n "$LINES" ] && report_secret "Supabase access token" "$file" "$LINES"
+
+  LINES=$(grep -n 'service_role' "$file" 2>/dev/null | grep -E 'eyJ[A-Za-z0-9_-]{20,}' | cut -d: -f1 | tr '\n' ',')
+  [ -n "$LINES" ] && report_secret "Supabase service_role key (bypasses RLS)" "$file" "$LINES"
+
+  # Keys for services this boilerplate does not use yet — client projects
+  # cloned from it will, so the patterns stay.
+  LINES=$(grep -nE 're_[A-Za-z0-9]{16,}_[A-Za-z0-9]{16,}' "$file" 2>/dev/null | cut -d: -f1 | tr '\n' ',')
+  [ -n "$LINES" ] && report_secret "Resend API key" "$file" "$LINES"
+
+  LINES=$(grep -nE 'sk-or-v1-[A-Za-z0-9]{32,}' "$file" 2>/dev/null | cut -d: -f1 | tr '\n' ',')
+  [ -n "$LINES" ] && report_secret "OpenRouter API key" "$file" "$LINES"
+
+  LINES=$(grep -nE 'sk-ant-[A-Za-z0-9_-]{32,}' "$file" 2>/dev/null | cut -d: -f1 | tr '\n' ',')
+  [ -n "$LINES" ] && report_secret "Anthropic API key" "$file" "$LINES"
+
+  LINES=$(grep -nE 'sk-(proj-)?[A-Za-z0-9_-]{32,}' "$file" 2>/dev/null | cut -d: -f1 | tr '\n' ',')
+  [ -n "$LINES" ] && report_secret "OpenAI API key" "$file" "$LINES"
+
+  LINES=$(grep -nE 'xox[baprs]-[A-Za-z0-9-]{10,}|hooks\.slack\.com/services/[A-Za-z0-9/]{20,}' "$file" 2>/dev/null | cut -d: -f1 | tr '\n' ',')
+  [ -n "$LINES" ] && report_secret "Slack token or webhook URL" "$file" "$LINES"
+
+  LINES=$(grep -nE '(password|secret|token|apikey|api_key)[[:space:]]*[:=][[:space:]]*["'"'"'][A-Za-z0-9+/=]{20,}["'"'"']' "$file" 2>/dev/null \
+    | grep -v 'process\.env' | grep -v 'example' | grep -v 'placeholder' \
+    | cut -d: -f1 | tr '\n' ',')
+  [ -n "$LINES" ] && report_secret "possible hardcoded credential" "$file" "$LINES"
+
+  LINES=$(grep -nE '(postgres|postgresql|mysql|mongodb)://[a-zA-Z0-9]+:[^$\{]+@' "$file" 2>/dev/null | cut -d: -f1 | tr '\n' ',')
+  [ -n "$LINES" ] && report_secret "database connection string" "$file" "$LINES"
+done
+
+if [ "$SECRET_FOUND" -eq 1 ]; then
+  echo ""
+  echo "Potential credentials found in staged files."
+  echo "If these are genuinely false positives: git commit --no-verify"
+  echo "Only do that if you are certain they are not real secrets."
+  exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# 3. Sensitive file alert (informational — does not block)
+# ---------------------------------------------------------------------------
+BUILD_CONFIG_FILES="next.config.ts next.config.js next.config.mjs postcss.config.js postcss.config.mjs postcss.config.cjs tailwind.config.js tailwind.config.ts eslint.config.mjs eslint.config.js eslint.boundaries.mjs babel.config.js webpack.config.js instrumentation.ts instrumentation-client.ts sentry.server.config.ts sentry.edge.config.ts"
+SENSITIVE_PATHS=".gitignore .github package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc .husky .lintstagedrc scripts/security supabase"
+
+CONFIG_CHANGED=0
+for file in $BUILD_CONFIG_FILES; do
+  if echo "$STAGED_FILES" | grep -q "^${file}$"; then
+    echo "  BUILD CONFIG MODIFIED: $file"
+    CONFIG_CHANGED=1
+  fi
+done
+
+for path in $SENSITIVE_PATHS; do
+  if echo "$STAGED_FILES" | grep -q "^${path}"; then
+    echo "  SENSITIVE FILE MODIFIED: $path"
+    CONFIG_CHANGED=1
+  fi
+done
+
+if [ "$CONFIG_CHANGED" -eq 1 ]; then
+  echo ""
+  echo "  These files execute at build time or control security checks."
+  echo "  They will require code-owner review before this PR can merge."
+  echo "  Confirm you made these changes intentionally and nothing was injected."
+  echo ""
+fi
+
+# ---------------------------------------------------------------------------
+# 4. Build config integrity
+# ---------------------------------------------------------------------------
+# Same script CI and the scheduled scan run, so a commit that passes here
+# cannot be rejected by CI for a different definition of "clean".
+# ---------------------------------------------------------------------------
+if [ -f scripts/security/check-build-config.sh ]; then
+  sh scripts/security/check-build-config.sh || exit 1
+else
+  echo "${RED}WARNING: scripts/security/check-build-config.sh is missing.${RESET}"
+  echo "The build config integrity check could not run. If you did not delete"
+  echo "this file yourself, treat it as a possible tampering attempt."
+  exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# 5. Colours come from tokens
+# ---------------------------------------------------------------------------
 # Whole-repo, not staged-only — it reads the filesystem and takes under a
 # second. CI runs it too; this is only the faster loop.
 echo "${DIM}  Checking colours come from tokens...${RESET}"
