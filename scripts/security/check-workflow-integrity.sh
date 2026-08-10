@@ -64,6 +64,20 @@ for file in .github/workflows/*.yml .github/workflows/*.yaml; do
   fi
 done
 
+# The gate lists its ShellCheck targets literally, so a script added later is
+# linted only if someone remembers to add it. Nothing would report the gap:
+# ShellCheck stays silent about files it was never given.
+GATE=".github/workflows/security-gate.yml"
+if [ -f "$GATE" ]; then
+  for script in scripts/security/*.sh; do
+    [ -f "$script" ] || continue
+    if ! grep -qF "$script" "$GATE"; then
+      echo "::error file=$GATE::$script is not in the L4 ShellCheck target list — add it, or it ships unlinted"
+      FAILED=1
+    fi
+  done
+fi
+
 if [ "$FAILED" -eq 1 ]; then
   echo "::error::CI/CD integrity check failed"
   exit 1
