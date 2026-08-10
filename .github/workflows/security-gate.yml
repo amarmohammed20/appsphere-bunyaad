@@ -1,18 +1,7 @@
-# ============================================================================
-# SECURITY GATE — DevSecOps Supply Chain Security Pipeline
-# ============================================================================
-# Single pipeline, single job, single check in the PR.
-#
-# Layers run in priority order (most critical first):
-#   1. Build Config Guard — detects infected build-time config files
-#   2. Secret Scanning — catches leaked credentials
-#   3. Supply Chain — dependency vulnerabilities & lockfile tampering
-#   4. CI/CD Integrity — protects the pipeline itself
-#   5. SAST — code-level vulnerabilities (SQL injection, XSS, etc.)
-#   6. Container Security — Docker misconfigs & CVEs
-#
-# All layers run even if earlier ones fail, so you see every issue at once.
-# ============================================================================
+# Layers, in priority order:
+#   L1 Build config · L2 Secrets · L3 Supply chain
+#   L4 CI/CD integrity · L5 SAST · L6 Container
+# Every step is `if: always()` so one run reports every layer's findings.
 
 name: 'Security Gate'
 
@@ -29,7 +18,6 @@ permissions:
   pull-requests: write
   security-events: write
 
-# A new push supersedes the run already in flight for the same PR.
 concurrency:
   group: security-gate-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -49,9 +37,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-          # Without this, checkout leaves a usable GITHUB_TOKEN in the
-          # repo's git config. Anything that executes later in the job —
-          # including an injected build config — could read it and push.
+          # Later steps run third-party code (pnpm install, build config);
+          # do not leave the token in .git/config for them.
           persist-credentials: false
 
       - name: Setup pnpm
@@ -63,10 +50,7 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      # ================================================================
-      #  LAYER 1 — BUILD CONFIG GUARD (highest priority)
-      #  Detects infected build-time config files before anything runs.
-      # ================================================================
+      # --- L1: Build config ---
 
       - name: 'L1: Build config infection check'
         id: build-config
@@ -74,200 +58,28 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
-        run: |
-          echo "=== BUILD CONFIG INTEGRITY ANALYSIS ==="
-
-          SEVERITY="info"
-          FINDINGS=""
-          CRITICAL_COUNT=0
-          HIGH_COUNT=0
-          MEDIUM_COUNT=0
-
-          # --- Static file integrity ---
-          # Same script the pre-commit hook and the scheduled scan run, so all
-          # three agree on what "clean" means. Covers size limits, space-padding,
-          # long obfuscated lines, content after the config block, createRequire,
-          # and execution/network primitives.
-          if ! sh scripts/security/check-build-config.sh > /tmp/config-integrity.txt 2>&1; then
-            FINDINGS="${FINDINGS}$(sed 's/^/  /' /tmp/config-integrity.txt)\n"
-            CRITICAL_COUNT=$((CRITICAL_COUNT + 10))
-          fi
-          cat /tmp/config-integrity.txt
-
-          # --- PR diff analysis (only on PRs) ---
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            CHANGED_FILES=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
-
-            BUILD_CONFIGS="next.config.ts next.config.js next.config.mjs postcss.config.js postcss.config.mjs postcss.config.cjs tailwind.config.js tailwind.config.ts tailwind.config.mjs eslint.config.mjs eslint.config.js eslint.config.ts eslint.boundaries.mjs babel.config.js .babelrc webpack.config.js instrumentation.ts instrumentation-client.ts sentry.client.config.ts sentry.server.config.ts sentry.edge.config.ts"
-
-            # Editing a build config is HIGH, not CRITICAL. These files are the
-            # injection point, so every change must be seen — but they are also
-            # ordinary files people legitimately maintain. Blocking on the mere
-            # fact of a change means every routine config edit fails the gate,
-            # and a gate that blocks normal work is one people learn to bypass.
-            # CODEOWNERS already forces a second reviewer on these paths.
-            #
-            # What DOES block is the content of the change: code execution,
-            # network calls, or obfuscation appearing in a build config. Those
-            # are the actual signatures of the postcss.config incident.
-            for file in $BUILD_CONFIGS; do
-              if echo "$CHANGED_FILES" | grep -q "^${file}$"; then
-                HIGH_COUNT=$((HIGH_COUNT + 1))
-                FINDINGS="${FINDINGS}HIGH: Build-time config modified: ${file} — requires code-owner review\n"
-                DIFF=$(git diff "$BASE_SHA" "$HEAD_SHA" -- "$file")
-
-                if echo "$DIFF" | grep -E '^\+.*(eval\s*\(|new\s+Function|child_process|exec\s*\(|spawn\s*\(|execSync|spawnSync)' >/dev/null 2>&1; then
-                  FINDINGS="${FINDINGS}  DANGER: Code execution primitive detected (eval/exec/spawn)\n"
-                  CRITICAL_COUNT=$((CRITICAL_COUNT + 5))
-                fi
-                if echo "$DIFF" | grep -E '^\+.*(fetch\s*\(|https?\.|axios|XMLHttpRequest|net\.|dgram\.)' >/dev/null 2>&1; then
-                  FINDINGS="${FINDINGS}  DANGER: Network call in build config — possible exfiltration\n"
-                  CRITICAL_COUNT=$((CRITICAL_COUNT + 5))
-                fi
-                if echo "$DIFF" | grep -E '^\+.*(Buffer\.|atob|btoa|toString\(.base64|from\(.base64)' >/dev/null 2>&1; then
-                  FINDINGS="${FINDINGS}  DANGER: Encoding/decoding detected — possible obfuscated payload\n"
-                  CRITICAL_COUNT=$((CRITICAL_COUNT + 3))
-                fi
-                # The rest appear in plenty of legitimate configs (a next.config
-                # that reads a file, a tailwind config that requires a plugin),
-                # so they are surfaced for the reviewer rather than blocking.
-                if echo "$DIFF" | grep -E '^\+.*(fs\.|readFileSync|writeFileSync)' >/dev/null 2>&1; then
-                  FINDINGS="${FINDINGS}  WARNING: Filesystem access in build config\n"
-                  HIGH_COUNT=$((HIGH_COUNT + 1))
-                fi
-                if echo "$DIFF" | grep -E '^\+.*require\s*\(' | grep -v 'node_modules' >/dev/null 2>&1; then
-                  FINDINGS="${FINDINGS}  WARNING: New require() call added\n"
-                  HIGH_COUNT=$((HIGH_COUNT + 1))
-                fi
-                if echo "$DIFF" | grep -E '^\+.*import\s*\(' >/dev/null 2>&1; then
-                  FINDINGS="${FINDINGS}  WARNING: Dynamic import() added\n"
-                  HIGH_COUNT=$((HIGH_COUNT + 1))
-                fi
-                if echo "$DIFF" | grep -E '^\+.*process\.env' | grep -v 'NODE_ENV' >/dev/null 2>&1; then
-                  FINDINGS="${FINDINGS}  WARNING: Accessing process.env — could exfiltrate secrets\n"
-                  HIGH_COUNT=$((HIGH_COUNT + 1))
-                fi
-              fi
-            done
-
-            # .gitignore track-covering
-            if echo "$CHANGED_FILES" | grep -q "^\.gitignore$"; then
-              HIGH_COUNT=$((HIGH_COUNT + 1))
-              FINDINGS="${FINDINGS}HIGH: .gitignore modified\n"
-              DIFF=$(git diff "$BASE_SHA" "$HEAD_SHA" -- .gitignore)
-              if echo "$DIFF" | grep -E '^\+.*(config|\.mjs|\.ts|src/|\.github)' >/dev/null 2>&1; then
-                FINDINGS="${FINDINGS}  DANGER: .gitignore now excludes config/source files\n"
-                CRITICAL_COUNT=$((CRITICAL_COUNT + 3))
-              fi
-            fi
-
-            # package.json lifecycle injection
-            if echo "$CHANGED_FILES" | grep -q "^package\.json$"; then
-              HIGH_COUNT=$((HIGH_COUNT + 1))
-              FINDINGS="${FINDINGS}HIGH: package.json modified\n"
-              DIFF=$(git diff "$BASE_SHA" "$HEAD_SHA" -- package.json)
-              if echo "$DIFF" | grep -E '^\+.*"(preinstall|postinstall|preuninstall|prepare|prepublish)"' >/dev/null 2>&1; then
-                FINDINGS="${FINDINGS}  DANGER: Lifecycle script added\n"
-                CRITICAL_COUNT=$((CRITICAL_COUNT + 3))
-              fi
-            fi
-
-            # CI/CD workflow changes (flagged for review, not blocking)
-            WORKFLOW_CHANGES=$(echo "$CHANGED_FILES" | grep -E '^\.github/' || true)
-            if [ -n "$WORKFLOW_CHANGES" ]; then
-              HIGH_COUNT=$((HIGH_COUNT + 1))
-              FINDINGS="${FINDINGS}HIGH: CI/CD workflow files modified — requires review\n"
-            fi
-
-            # Git hooks changes
-            HOOK_CHANGES=$(echo "$CHANGED_FILES" | grep -E '^\.(husky|huskyrc|lintstagedrc)' || true)
-            if [ -n "$HOOK_CHANGES" ]; then
-              HIGH_COUNT=$((HIGH_COUNT + 1))
-              FINDINGS="${FINDINGS}HIGH: Git hooks modified\n"
-            fi
-
-            # Changes to the security scripts themselves — weakening a detector
-            # is the step an attacker takes before injecting the payload.
-            SECURITY_SCRIPT_CHANGES=$(echo "$CHANGED_FILES" | grep -E '^scripts/security/' || true)
-            if [ -n "$SECURITY_SCRIPT_CHANGES" ]; then
-              HIGH_COUNT=$((HIGH_COUNT + 1))
-              FINDINGS="${FINDINGS}HIGH: Security check scripts modified — verify detections were not weakened\n"
-            fi
-
-            # In this repo the install-script allowlist and the release-age
-            # delay live in pnpm-workspace.yaml (pnpm v11 reads only auth and
-            # registry from .npmrc). Weakening either re-opens the vector the
-            # postcss.config incident came through; the L3 settings check
-            # blocks precise changes, this flags the file for review.
-            if echo "$CHANGED_FILES" | grep -q "^pnpm-workspace\.yaml$"; then
-              HIGH_COUNT=$((HIGH_COUNT + 1))
-              FINDINGS="${FINDINGS}HIGH: pnpm-workspace.yaml modified — supply chain policy change\n"
-              DIFF=$(git diff "$BASE_SHA" "$HEAD_SHA" -- pnpm-workspace.yaml)
-              if echo "$DIFF" | grep -E '^\-.*minimumReleaseAge' >/dev/null 2>&1; then
-                FINDINGS="${FINDINGS}  DANGER: minimumReleaseAge removed or lowered\n"
-                CRITICAL_COUNT=$((CRITICAL_COUNT + 3))
-              fi
-              if echo "$DIFF" | grep -E '^\+.*dangerouslyAllowAllBuilds' >/dev/null 2>&1; then
-                FINDINGS="${FINDINGS}  DANGER: blanket build-script bypass added\n"
-                CRITICAL_COUNT=$((CRITICAL_COUNT + 5))
-              fi
-            fi
-
-            # .npmrc still controls the registry.
-            if echo "$CHANGED_FILES" | grep -q "^\.npmrc$"; then
-              HIGH_COUNT=$((HIGH_COUNT + 1))
-              FINDINGS="${FINDINGS}HIGH: .npmrc modified — supply chain policy change\n"
-              DIFF=$(git diff "$BASE_SHA" "$HEAD_SHA" -- .npmrc)
-              if echo "$DIFF" | grep -E '^\-.*minimum-release-age' >/dev/null 2>&1; then
-                FINDINGS="${FINDINGS}  DANGER: minimum-release-age removed or lowered\n"
-                CRITICAL_COUNT=$((CRITICAL_COUNT + 3))
-              fi
-              if echo "$DIFF" | grep -E '^\+.*(registry[[:space:]]*=|dangerously-allow-all-builds)' >/dev/null 2>&1; then
-                FINDINGS="${FINDINGS}  DANGER: registry override or build-script bypass added\n"
-                CRITICAL_COUNT=$((CRITICAL_COUNT + 5))
-              fi
-            fi
-          fi
-
-          # Determine severity
-          if [ "$CRITICAL_COUNT" -gt 0 ]; then
-            SEVERITY="critical"
-          elif [ "$HIGH_COUNT" -gt 0 ]; then
-            SEVERITY="high"
-          elif [ "$MEDIUM_COUNT" -gt 0 ]; then
-            SEVERITY="medium"
-          fi
-
-          echo "severity=$SEVERITY" >> "$GITHUB_OUTPUT"
-          echo "critical_count=$CRITICAL_COUNT" >> "$GITHUB_OUTPUT"
-          echo "high_count=$HIGH_COUNT" >> "$GITHUB_OUTPUT"
-          echo "medium_count=$MEDIUM_COUNT" >> "$GITHUB_OUTPUT"
-
-          printf '%b' "$FINDINGS" > /tmp/findings.txt
-
-          echo ""
-          echo "Critical: $CRITICAL_COUNT | High: $HIGH_COUNT | Medium: $MEDIUM_COUNT | Severity: $SEVERITY"
-          printf '%b' "$FINDINGS"
-
-          if [ "$SEVERITY" = "critical" ]; then
-            echo "::error::CRITICAL security findings in build config files."
-            exit 1
-          fi
+        run: sh scripts/security/check-build-config-diff.sh
 
       - name: 'L1: Post build config report'
         if: always() && github.event_name == 'pull_request'
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         continue-on-error: true
+        # env, not `${{ }}` in script — those are pasted in as source and any
+        # value containing a quote would execute.
+        env:
+          SEVERITY: ${{ steps.build-config.outputs.severity }}
+          CRITICAL_COUNT: ${{ steps.build-config.outputs.critical_count }}
+          HIGH_COUNT: ${{ steps.build-config.outputs.high_count }}
+          MEDIUM_COUNT: ${{ steps.build-config.outputs.medium_count }}
         with:
           script: |
             const fs = require('fs');
             let findings = '';
             try { findings = fs.readFileSync('/tmp/findings.txt', 'utf8'); } catch(e) {}
-            const severity = '${{ steps.build-config.outputs.severity }}' || 'info';
-            const criticalCount = parseInt('${{ steps.build-config.outputs.critical_count }}') || 0;
-            const highCount = parseInt('${{ steps.build-config.outputs.high_count }}') || 0;
-            const mediumCount = parseInt('${{ steps.build-config.outputs.medium_count }}') || 0;
+            const severity = process.env.SEVERITY || 'info';
+            const criticalCount = parseInt(process.env.CRITICAL_COUNT) || 0;
+            const highCount = parseInt(process.env.HIGH_COUNT) || 0;
+            const mediumCount = parseInt(process.env.MEDIUM_COUNT) || 0;
 
             const labels = {
               critical: 'CRITICAL — Mandatory senior review required',
@@ -276,9 +88,8 @@ jobs:
               info: 'CLEAN — No security concerns'
             };
 
-            // Built by joining lines rather than as an indented template
-            // literal: leading whitespace would make GitHub render the whole
-            // comment as a code block instead of a table.
+            // Array + join, not a template literal: leading whitespace makes
+            // GitHub render the whole comment as a code block.
             const body = [
               '## Build Config Integrity Report',
               '',
@@ -316,16 +127,9 @@ jobs:
               });
             }
 
-      # ================================================================
-      #  LAYER 2 — SECRET SCANNING
-      #  Gitleaks + TruffleHog + custom patterns
-      # ================================================================
+      # --- L2: Secrets ---
 
-      # gitleaks-action v2 takes no custom arguments — it decides what to scan
-      # from the event itself (PR commits on a PR, full history on push) and
-      # fails the step when it finds a leak. Passing `args` is silently ignored,
-      # which also means no SARIF file is ever produced, so there is nothing to
-      # upload in a separate step.
+      # v2 chooses its scope from the event and ignores `args:`; no SARIF is produced.
       - name: 'L2: Gitleaks'
         id: gitleaks
         if: always()
@@ -345,137 +149,12 @@ jobs:
       - name: 'L2: Custom secret patterns'
         id: custom-secrets
         if: always()
-        run: |
-          echo "=== Custom secret pattern scan ==="
-          FOUND=0
+        run: bash scripts/security/check-secrets.sh
 
-          # git grep, not grep -r. It searches only tracked files, which is both
-          # what we care about (committed content) and far faster: an unscoped
-          # `grep -r` took over 90 seconds crawling public/ and node_modules,
-          # while git grep finishes in about one second.
-          #
-          # Pathspecs are listed separately on purpose. Git's pathspec matcher
-          # does NOT support brace expansion, so '*.{ts,tsx}' silently matches
-          # nothing and every scan would pass regardless of content.
-          #
-          # They MUST also be an array expanded as "${CODE_PATHS[@]}", never an
-          # unquoted string. A string of globs is expanded by the shell against
-          # the repo root before git is invoked, so '*.ts' collapses to the four
-          # root-level .ts files and all 492 files under src/ are silently
-          # skipped. That failure is per-extension and invisible: extensions
-          # with no root-level file stay literal and do recurse, so the scan
-          # looks like it works. Quoted array expansion hands the patterns to
-          # git untouched, which is the only thing that recurses.
-          CODE_PATHS=(
-            '*.ts' '*.tsx' '*.js' '*.jsx' '*.mjs' '*.cjs'
-            '*.json' '*.yml' '*.yaml' '*.sh' '*.md'
-          )
-          # The security scripts and this workflow contain these patterns by
-          # definition, so exclude them or every run reports itself.
-          EXCLUDES=(
-            ':(exclude)scripts/security/**'
-            ':(exclude).github/workflows/security-*'
-          )
+      # --- L3: Supply chain ---
+      # dependency-review-action is not used: it needs GHAS, and pnpm audit
+      # below covers known-vulnerable dependencies.
 
-          # -e is required: a pattern starting with '-' would otherwise be
-          # parsed as command-line options and silently match nothing.
-          scan() {
-            desc="$1"
-            pattern="$2"
-            if git grep -nIE -e "$pattern" -- "${CODE_PATHS[@]}" "${EXCLUDES[@]}" 2>/dev/null; then
-              echo "::error::$desc"
-              FOUND=1
-            fi
-          }
-
-          scan "Found hardcoded database connection string" \
-            '(postgres|postgresql|mysql|mongodb)://[^$[:space:]"'"'"']+:[^$[:space:]"'"'"']+@'
-
-          scan "Found hardcoded AWS credentials" \
-            '(AKIA[0-9A-Z]{16}|aws_secret_access_key[[:space:]]*=[[:space:]]*["'"'"'][^$])'
-
-          scan "Found hardcoded Supabase access token" \
-            'sbp_[A-Za-z0-9]{32,}'
-
-          scan "Found hardcoded Resend API key" \
-            're_[A-Za-z0-9]{16,}_[A-Za-z0-9]{16,}'
-
-          # OpenRouter / OpenAI / Anthropic keys — this app calls all three
-          # through @tanstack/ai, and an LLM key leak is directly billable.
-          scan "Found hardcoded OpenRouter API key" \
-            'sk-or-v1-[A-Za-z0-9]{32,}'
-
-          scan "Found hardcoded OpenAI API key" \
-            'sk-(proj-)?[A-Za-z0-9_-]{32,}'
-
-          scan "Found hardcoded Anthropic API key" \
-            'sk-ant-[A-Za-z0-9_-]{32,}'
-
-          # Slack bot token and incoming webhook.
-          scan "Found hardcoded Slack token" \
-            'xox[baprs]-[A-Za-z0-9-]{10,}'
-
-          scan "Found hardcoded Slack webhook URL" \
-            'hooks\.slack\.com/services/[A-Za-z0-9/]{20,}'
-
-          scan "Found hardcoded Authorization bearer token" \
-            '[Aa]uthorization["'"'"']?[[:space:]]*[:=][[:space:]]*["'"'"']Bearer [A-Za-z0-9._-]{20,}["'"'"']'
-
-          # Named secrets assigned a literal value rather than read from env.
-          scan "Found a secret assigned a literal value instead of process.env" \
-            '(SUPABASE_SERVICE_ROLE_KEY|SUPABASE_SERVICE_ROLE|SUPABASE_ACCESS_TOKEN|SUPABASE_DB_URL|RESEND_API_KEY|OPENROUTER_API_KEY|SLACK_BOT_TOKEN|COMPANIES_HOUSE_[A-Z_]*)["'"'"']?[[:space:]]*[:=][[:space:]]*["'"'"'][^$][^"'"'"']{8,}'
-
-          # Supabase service_role JWT bypasses row level security entirely.
-          if git grep -nI -e 'service_role' -- "${CODE_PATHS[@]}" "${EXCLUDES[@]}" 2>/dev/null | grep -E 'eyJ[A-Za-z0-9_-]{20,}'; then
-            echo "::error::Found hardcoded Supabase service_role key — this bypasses RLS entirely"
-            FOUND=1
-          fi
-
-          # Private keys are searched across every tracked file, not just the
-          # code paths above: a key is just as dangerous in a .pem, .key, or
-          # extensionless file.
-          if git grep -nIE -e '-----BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----' -- . "${EXCLUDES[@]}" 2>/dev/null; then
-            echo "::error::Found embedded private key"
-            FOUND=1
-          fi
-
-          # A committed .env is the real risk. Checking the filesystem instead
-          # would flag every developer's gitignored .env.local as a finding.
-          #
-          # .env.example holds placeholders, and .env.vault holds dotenv-vault's
-          # AES-encrypted values whose decryption key lives outside the repo —
-          # both are meant to be committed, so neither is a leak.
-          COMMITTED_ENV=$(git ls-files | grep -E '(^|/)\.env($|\.)' \
-            | grep -vE '\.env\.example$|\.env\.vault$' || true)
-          if [ -n "$COMMITTED_ENV" ]; then
-            echo "::error::Environment file committed to the repository:"
-            echo "$COMMITTED_ENV"
-            FOUND=1
-          fi
-
-          if [ "$FOUND" -eq 1 ]; then
-            exit 1
-          fi
-          echo "No hardcoded secrets detected"
-
-      # ================================================================
-      #  LAYER 3 — SUPPLY CHAIN
-      #  Supply chain settings, lockfile integrity, pnpm audit
-      # ================================================================
-
-      # ADVISORY, not blocking. This repo currently has 16 high-severity
-      # advisories in production dependencies. Making this blocking today would
-      # fail every PR and teach the team to bypass the gate. Findings are printed
-      # so the backlog is visible; remove continue-on-error once it reaches zero.
-      # NOTE: actions/dependency-review-action is intentionally absent. It
-      # requires GitHub Advanced Security, which private repos only get on a
-      # paid plan — without it the step errors on every single run and can
-      # never report a finding. pnpm audit below covers known-vulnerable
-      # dependencies. If the repo goes public or gets GHAS, re-add it here.
-
-      # The install-script allowlist and the 14-day release-age delay are the
-      # protections that stop a compromised package running code during
-      # install. Verify nobody weakened them before trusting anything else.
       - name: 'L3: Supply chain settings intact'
         if: always()
         run: node scripts/security/check-supply-chain-settings.mjs
@@ -486,65 +165,12 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          echo "=== LOCKFILE INTEGRITY CHECK ==="
+        run: sh scripts/security/check-lockfile.sh
 
-          echo "Checking lockfile sync..."
-          pnpm install --frozen-lockfile --lockfile-only 2>&1 || {
-            echo "::error::pnpm-lock.yaml is out of sync with package.json"
-            echo "::error::Run 'pnpm install' and commit the updated lockfile"
-            exit 1
-          }
-
-          # Unlike npm, pnpm-lock.yaml stores only integrity hashes for registry
-          # packages — it never records the registry URL. So checking the
-          # lockfile alone cannot detect a substituted registry; the real lever
-          # is .npmrc. Check both.
-          ROGUE_REGISTRY=$(grep -nE '^\s*(registry|@[^:]+:registry)\s*=' .npmrc 2>/dev/null \
-            | grep -vE 'registry\.npmjs\.org' || true)
-          if [ -n "$ROGUE_REGISTRY" ]; then
-            echo "::error::.npmrc points package resolution at a non-npm registry:"
-            echo "$ROGUE_REGISTRY"
-            echo "::error::Every dependency would then be fetched from that host. Verify this is intended."
-            exit 1
-          fi
-
-          # Non-registry dependencies (git or direct tarball URLs) bypass the
-          # registry entirely and are pinned by URL, so list any that appear.
-          ROGUE_TARBALL=$(grep -oE 'tarball: https?://[^,}[:space:]]+' pnpm-lock.yaml 2>/dev/null \
-            | grep -vE 'registry\.npmjs\.org|codeload\.github\.com|github\.com' | head -5 || true)
-          if [ -n "$ROGUE_TARBALL" ]; then
-            echo "::error::Lockfile fetches packages directly from a non-npm host:"
-            echo "$ROGUE_TARBALL"
-            echo "::error::This is how a substituted package enters the build. Verify every entry above."
-            exit 1
-          fi
-          echo "Registry configuration and all lockfile entries resolve to the public npm registry"
-
-          if git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -q "^pnpm-lock.yaml$"; then
-            if ! git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -q "^package.json$"; then
-              echo "::warning::pnpm-lock.yaml changed without package.json change"
-            fi
-          fi
-
-          echo "Lockfile integrity check passed"
-
-      # pnpm blocks dependency install scripts by default; only the packages in
-      # pnpm.onlyBuiltDependencies may run them (verified by the step above).
       - name: 'L3: Install dependencies'
         if: always()
         run: pnpm install --frozen-lockfile
 
-      # BLOCKING. This started advisory because the repo carried 12 high
-      # severity advisories in production dependencies, and a gate that fails
-      # every PR from day one just teaches the team to route around it. That
-      # backlog is now cleared, so the condition for turning it on is met and
-      # `continue-on-error` has been removed.
-      #
-      # Production dependencies ship to users, so a new high or critical here
-      # should stop the merge rather than print a warning nobody reads. If this
-      # ever fails on something with no released fix, raise it in the PR — do
-      # not re-add continue-on-error to get green.
       - name: 'L3: pnpm audit (production)'
         id: pnpm-audit
         if: always()
@@ -555,16 +181,8 @@ jobs:
           }
           echo "No high/critical vulnerabilities in production dependencies"
 
-      # BLOCKING, at the same high/critical threshold as production.
-      #
-      # Dev dependencies do not ship to users, so the first instinct is to
-      # treat them as lower risk. That instinct is wrong for this repo: the
-      # incident that started all of this was a dev-time attack. An infostealer
-      # ran during `npm run build` on developer machines and took .env files,
-      # SSH keys and git credentials. No user traffic was involved at any point.
-      #
-      # These packages execute on our machines and on the runner, with access
-      # to the repo and to whatever secrets are in scope. That is worth gating.
+      # Dev deps run during install and build with access to the same secrets;
+      # gate them at the same threshold as production.
       - name: 'L3: pnpm audit (dev)'
         if: always()
         run: |
@@ -574,270 +192,113 @@ jobs:
           }
           echo "No high/critical vulnerabilities in dev dependencies"
 
-      # ================================================================
-      #  LAYER 4 — CI/CD INTEGRITY
-      #  Protects the pipeline itself from being weaponised
-      # ================================================================
+      # --- L4: CI/CD integrity ---
+      # Tools first, then the custom fallback. Pinning is enforced by zizmor
+      # below and by scripts/check-action-pinning.mjs in the PR checks, which
+      # hard-fails on tag pins — no L4 pinning step is needed here.
 
-      - name: 'L4: Workflow security analysis'
+      - name: 'L4: ShellCheck'
+        if: always()
+        uses: docker://koalaman/shellcheck@sha256:61862eba1fcf09a484ebcc6feea46f1782532571a34ed51fedf90dd25f925a8d # v0.11.0
+        with:
+          args: >-
+            scripts/security/check-app-code.sh
+            scripts/security/check-build-config.sh
+            scripts/security/check-build-config-diff.sh
+            scripts/security/check-lockfile.sh
+            scripts/security/check-secrets.sh
+            scripts/security/check-workflow-integrity.sh
+            scripts/security/setup-signed-commits.sh
+            .husky/pre-commit
+
+      # Also runs ShellCheck on every embedded `run:` block.
+      - name: 'L4: actionlint'
+        if: always()
+        uses: docker://rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 # v1.7.12
+        with:
+          args: -color
+
+      # Console mode: SARIF upload needs GHAS.
+      - name: 'L4: zizmor'
+        if: always()
+        uses: zizmorcore/zizmor-action@3dc1ecc9bcb9e94e9b2c709687979e1298497054 # v0.6.2
+        with:
+          inputs: .github/workflows/
+          version: '1.29.0'
+          # Default confidence: artipacked and template-injection sit at low.
+          online-audits: true
+          advanced-security: false
+
+      # terraform and dockerfile frameworks are enabled ahead of time so the
+      # first such file is covered without another workflow change.
+      - name: 'L4: checkov'
+        if: always()
+        uses: docker://bridgecrew/checkov@sha256:2e6bbda38f5d41467c4db2d78522ede42a68a7060338ea72614766a4f9ae8b31 # 3.2.494
+        with:
+          args: >-
+            --directory .
+            --framework github_actions dockerfile terraform
+            --compact
+            --quiet
+
+      - name: 'L4: Workflow security analysis (custom)'
         id: cicd-check
         if: always()
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          echo "=== CI/CD PIPELINE INTEGRITY ANALYSIS ==="
-          FAILED=0
+        run: sh scripts/security/check-workflow-integrity.sh
 
-          # Every workflow in the repo is scanned, not just the ones this PR
-          # touches — a diff-only scan can never see a pre-existing problem.
-          # But only findings in files this PR CHANGES block the merge; a
-          # problem that was already on main is reported as a warning so it
-          # gets fixed in its own PR instead of blocking unrelated work.
-          CHANGED_IN_PR=""
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            CHANGED_IN_PR=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA" -- '.github/' || true)
-          fi
-
-          # report <file> <message>: error + block if the PR touches the file,
-          # warning otherwise.
-          report() {
-            if echo "$CHANGED_IN_PR" | grep -qx "$1"; then
-              echo "::error file=$1::$2"
-              FAILED=1
-            else
-              echo "::warning file=$1::[pre-existing, fix in a separate PR] $2"
-            fi
-          }
-
-          for file in .github/workflows/*.yml .github/workflows/*.yaml; do
-            [ -f "$file" ] || continue
-
-            # The gate's own rule strings would match themselves.
-            if [ "$file" = ".github/workflows/security-gate.yml" ]; then
-              echo "Skipping self: $file"
-              continue
-            fi
-
-            echo "Scanning $file"
-
-            # Strip comments so documentation of a pattern is not read as a use
-            # of it, then drop the leading '+' handling since we scan whole files.
-            BODY=$(grep -vE '^[[:space:]]*#' "$file")
-
-            if echo "$BODY" | grep -qE 'permissions:[[:space:]]*write-all'; then
-              report "$file" "write-all permissions requested — scope them explicitly"
-            fi
-            if echo "$BODY" | grep -qE '(echo|printf|cat)[^|]*\$\{\{[[:space:]]*secrets\.'; then
-              report "$file" "A secret is written to the workflow log"
-            fi
-            # Printing a credential-bearing variable puts it in a log that every
-            # user with repo access can read for 90 days. Piping into jq, writing
-            # to GITHUB_ENV, and registering a mask are all legitimate and are
-            # excluded rather than reported.
-            LEAKS=$(echo "$BODY" \
-              | grep -E '(echo|printf)[[:space:]]+"[^"]*\$\{?(RESPONSE|ACCESS_TOKEN|REFRESH_TOKEN|TOKEN|SECRET|PASSWORD|CREDENTIAL)' \
-              | grep -vE '\||GITHUB_ENV|GITHUB_OUTPUT|add-mask' || true)
-            if [ -n "$LEAKS" ]; then
-              report "$file" "A credential-bearing variable is written to the workflow log"
-              echo "$LEAKS"
-            fi
-            if echo "$BODY" | grep -qE '(curl|wget)[^|]*\|[[:space:]]*(bash|sh|zsh)'; then
-              report "$file" "curl piped directly to a shell"
-            fi
-            if echo "$BODY" | grep -qE '(printenv|env[[:space:]]*>|set[[:space:]]*>|export[[:space:]]*>)'; then
-              report "$file" "Environment dump detected"
-            fi
-            # pull_request_target runs with repo secrets against attacker-authored
-            # code. Combined with an explicit checkout of the PR head it is a
-            # full repository takeover.
-            if echo "$BODY" | grep -qE 'pull_request_target'; then
-              if echo "$BODY" | grep -qE 'ref:[[:space:]]*\$\{\{[[:space:]]*github\.event\.pull_request\.head'; then
-                report "$file" "pull_request_target checks out PR head with secrets in scope"
-              else
-                echo "::warning file=$file::pull_request_target grants secrets to fork PRs — confirm this is intended"
-              fi
-            fi
-
-            if echo "$BODY" | grep -qE 'runs-on:.*self-hosted'; then
-              echo "::warning file=$file::Self-hosted runner — ensure the runner is hardened"
-            fi
-            if echo "$BODY" | grep -qE '(--no-verify|--skip-checks)'; then
-              echo "::warning file=$file::Security bypass flag present"
-            fi
-            # Interpolating attacker-controllable event data straight into a
-            # shell script is command injection. Binding it to an env: variable
-            # first is the safe form, so those lines are not reported.
-            INJECTABLE=$(echo "$BODY" \
-              | grep -E '\$\{\{[[:space:]]*github\.event\.(inputs|issue|comment|pull_request)\.[^}]*\}\}' \
-              | grep -vE '^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*:[[:space:]]*\$\{\{' || true)
-            if [ -n "$INJECTABLE" ]; then
-              echo "::warning file=$file::Untrusted event data used directly — bind it to an env: variable instead:"
-              echo "$INJECTABLE"
-            fi
-            if ! echo "$BODY" | grep -qE '^permissions:|^[[:space:]]+permissions:'; then
-              echo "::warning file=$file::No explicit permissions block — inherits the repository default token scope"
-            fi
-          done
-
-          if [ "$FAILED" -eq 1 ]; then
-            echo "::error::CI/CD integrity check failed"
-            exit 1
-          fi
-          echo "CI/CD pipeline integrity check passed"
-
-      - name: 'L4: Action pinning check'
-        id: action-pinning
-        if: always()
-        run: |
-          echo "=== ACTION PINNING CHECK ==="
-          UNPINNED=0
-
-          for workflow in .github/workflows/*.yml .github/workflows/*.yaml; do
-            if [ ! -f "$workflow" ]; then continue; fi
-            while IFS= read -r line; do
-              if echo "$line" | grep -qE '^\s*#'; then continue; fi
-              ACTION=$(echo "$line" | grep -oP 'uses:\s+\K[^\s]+' || true)
-              if [ -z "$ACTION" ]; then continue; fi
-              if echo "$ACTION" | grep -q '^\./'; then continue; fi
-              if ! echo "$ACTION" | grep -qE '@(v[0-9]|[0-9a-f]{40})'; then
-                echo "::warning file=$workflow::Unpinned action: $ACTION"
-                UNPINNED=$((UNPINNED + 1))
-              fi
-            done < "$workflow"
-          done
-
-          if [ "$UNPINNED" -gt 0 ]; then
-            echo "::warning::Found $UNPINNED unpinned actions"
-          else
-            echo "All actions are properly pinned"
-          fi
-
-      # ================================================================
-      #  LAYER 5 — SAST (Static Application Security Testing)
-      #  Semgrep + custom checks
+      # --- L5: SAST ---
+      # CodeQL is not used: it needs GHAS. Semgrep covers OWASP top ten,
+      # injection and secrets.
       #
-      #  Semgrep is BLOCKING: it went to zero findings on 2026-07-28 and
-      #  from that point any ERROR-severity finding fails the gate.
-      #
-      #  NOTE: CodeQL and all SARIF-upload steps are intentionally absent.
-      #  Both need GitHub Advanced Security, which private repos only get
-      #  on a paid plan — without it they error on every run and have never
-      #  been able to report a single finding here. Semgrep covers the same
-      #  ground (OWASP Top 10, injection, secrets) and prints findings
-      #  straight into this log. If the repo goes public or gets GHAS,
-      #  re-add codeql-action init/analyze here.
-      # ================================================================
+      # The four hand-written greps below were tested against a deliberately
+      # vulnerable file (2026-08-11):
+      #   - SQL and XSS: Semgrep with our rule packs did NOT flag them at all.
+      #   - path traversal and JWT: Semgrep did flag them, but at WARNING
+      #     severity — the `--severity ERROR` filter above drops those, so in
+      #     this pipeline they only reach the log via the greps.
+      # Delete a grep only after proving Semgrep catches its case at ERROR.
 
       - name: 'L5: Semgrep scan'
         id: semgrep
         if: always()
-        run: |
-          # Pinned. An unpinned install on a blocking step means a new Semgrep
-          # release, or a changed rule in one of the p/* packs, can fail every
-          # PR for reasons unrelated to the change under review. A gate that
-          # breaks on its own schedule is one the team learns to work around.
-          # Bump this deliberately, in its own PR, so a rule change is reviewed
-          # rather than arriving unannounced.
-          pip install 'semgrep==1.172.0'
-          semgrep scan \
-            --config "p/default" \
-            --config "p/security-audit" \
-            --config "p/secrets" \
-            --config "p/nextjs" \
-            --config "p/react" \
-            --config "p/typescript" \
-            --config "p/sql-injection" \
-            --config "p/xss" \
-            --config "p/owasp-top-ten" \
-            --config "p/supply-chain" \
-            --error \
-            --severity ERROR \
-            --exclude 'node_modules' \
-            --exclude '.next' \
-            --exclude 'cypress' \
+        # Bump this digest deliberately, in its own PR.
+        uses: docker://semgrep/semgrep@sha256:65dcd4408adda7c183a6b4550cb1e9b19f7f627a6fbb7e0559bd466bedc44d7b # 1.172.0
+        with:
+          # The image ships without an entrypoint; state it explicitly.
+          entrypoint: semgrep
+          args: >-
+            scan
+            --config "p/default"
+            --config "p/security-audit"
+            --config "p/secrets"
+            --config "p/nextjs"
+            --config "p/react"
+            --config "p/typescript"
+            --config "p/sql-injection"
+            --config "p/xss"
+            --config "p/owasp-top-ten"
+            --config "p/supply-chain"
+            --error
+            --severity ERROR
+            --exclude "node_modules"
+            --exclude ".next"
+            --exclude "cypress"
             .
         env:
           SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
 
-      # The pattern requires real SQL structure (DELETE FROM, SELECT ... FROM,
-      # INSERT INTO, UPDATE ... SET) rather than a bare keyword. Matching the
-      # keyword alone flags every REST call in this codebase — e.g.
-      # callConnectWise('DELETE', `/service/tickets/${id}`) — which is an HTTP
-      # method, not SQL, and would fail every PR.
-      - name: 'L5: SQL injection check'
-        id: sql-check
+      - name: 'L5: Custom SAST checks (SQL / XSS / path traversal / JWT)'
+        id: custom-sast
         if: always()
-        run: |
-          if git grep -nIE -e '(SELECT[[:space:]].*[[:space:]]FROM[[:space:]]|DELETE[[:space:]]+FROM[[:space:]]|INSERT[[:space:]]+INTO[[:space:]]|UPDATE[[:space:]]+[A-Za-z_."]+[[:space:]]+SET[[:space:]]|[[:space:]]WHERE[[:space:]]).*\$\{' \
-            -- 'src/*.ts' 'src/*.tsx' 2>/dev/null; then
-            echo "::error::SQL built by string interpolation — HIGH RISK of injection"
-            echo "::error::Use parameterised queries or the Supabase query builder instead."
-            exit 1
-          fi
-          echo "No critical SQL injection patterns found"
+        run: sh scripts/security/check-app-code.sh
 
-      - name: 'L5: XSS check'
-        if: always()
-        run: |
-          if git grep -nI -e 'dangerouslySetInnerHTML' -- 'src/*.tsx' 'src/*.jsx' 2>/dev/null; then
-            echo "::warning::dangerouslySetInnerHTML found — ensure content is sanitized"
-          fi
-
-      - name: 'L5: Path traversal check'
-        if: always()
-        run: |
-          if git grep -nIE -e '(path\.join|path\.resolve|fs\.(read|write)[A-Za-z]*)\(.*(req|request)\.(body|query|params|nextUrl)' \
-            -- 'src/*.ts' 'src/*.tsx' 2>/dev/null; then
-            echo "::error::User input used to build a file path — path traversal risk"
-            exit 1
-          fi
-          echo "No path traversal risks found"
-
-      - name: 'L5: Hardcoded JWT / signing secret check'
-        if: always()
-        run: |
-          if git grep -nIE -e '(jwt\.sign|jwt\.verify|createHmac)[[:space:]]*\([^)]*["'"'"'][A-Za-z0-9+/=_-]{8,}["'"'"']' \
-            -- 'src/*.ts' 'src/*.tsx' 2>/dev/null; then
-            echo "::error::Hardcoded signing secret passed to jwt/createHmac"
-            exit 1
-          fi
-          echo "No hardcoded JWT secrets found"
-
-      # ================================================================
-      #  LAYER 6 — CONTAINER SECURITY
-      #  Docker Compose analysis + Trivy scans
-      # ================================================================
-
-      - name: 'L6: Compose security analysis'
-        id: compose-check
-        if: always()
-        run: |
-          if [ ! -f compose.yaml ]; then
-            echo "No compose.yaml found — skipping"
-            exit 0
-          fi
-
-          ISSUES=0
-
-          if grep -q 'privileged:\s*true' compose.yaml; then
-            echo "::error::Container running in privileged mode"
-            ISSUES=$((ISSUES + 1))
-          fi
-          if grep -E '(PASSWORD|SECRET|KEY|TOKEN)\s*[:=]\s*["\x27]?[a-zA-Z0-9]' compose.yaml | \
-             grep -v '\${' | grep -v 'example' | grep -v 'changeme'; then
-            echo "::error::Hardcoded credentials in compose.yaml"
-            ISSUES=$((ISSUES + 1))
-          fi
-          if grep -E 'volumes:' -A 20 compose.yaml | grep -E '(/etc/|/root/|/home/|\.ssh|\.aws|\.kube)'; then
-            echo "::error::Sensitive host paths mounted into container"
-            ISSUES=$((ISSUES + 1))
-          fi
-
-          if [ "$ISSUES" -gt 0 ]; then
-            exit 1
-          fi
-          echo "Docker Compose security check passed"
+      # --- L6: Container ---
+      # No hand-written compose check: Trivy config scan below covers privileged
+      # mode, hardcoded credentials and host mounts on any compose.yaml that
+      # lands, and there is none in the repo today.
 
       - name: 'L6: Trivy filesystem scan'
         if: always()
@@ -845,12 +306,10 @@ jobs:
         with:
           scan-type: 'fs'
           scan-ref: '.'
-          # Table format so findings land in this log — SARIF upload needs
-          # GHAS, which this repo does not have.
+          # Table, not SARIF: SARIF upload needs GHAS.
           format: 'table'
           severity: 'HIGH,CRITICAL'
-          # Blocking on a vulnerability with no released patch gives the team
-          # no action to take, and a gate nobody can satisfy gets bypassed.
+          # Do not block on vulnerabilities with no released patch.
           ignore-unfixed: true
           skip-dirs: '.next,coverage,cypress'
           exit-code: '1'

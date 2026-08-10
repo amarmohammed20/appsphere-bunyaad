@@ -43,6 +43,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          # Without this, checkout leaves a usable GITHUB_TOKEN in the repo's
+          # git config for every later step to read. Nothing here talks to the
+          # remote after checkout, so it costs nothing to drop.
+          persist-credentials: false
 
       - name: Detect changed database files
         id: changed
@@ -100,6 +104,10 @@ jobs:
         with:
           # The changed-files diff below needs history beyond the PR.
           fetch-depth: 0
+          # Without this, checkout leaves a usable GITHUB_TOKEN in the repo's
+          # git config for every later step to read. Nothing here talks to the
+          # remote after checkout, so it costs nothing to drop.
+          persist-credentials: false
 
       - name: Detect changed migration files
         id: changed-migrations

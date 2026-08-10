@@ -34,6 +34,10 @@ jobs:
           # Full history: the secret scan and the base-branch check below both
           # need commits older than the pull request.
           fetch-depth: 0
+          # Without this, checkout leaves a usable GITHUB_TOKEN in the repo's
+          # git config, and this job then runs `pnpm install` and `pnpm run
+          # build` — third-party code that can read it.
+          persist-credentials: false
 
       # Tested against HEAD this would prove nothing: on a pull_request event
       # HEAD is the merge commit GitHub builds from head and base, so the base
@@ -45,7 +49,9 @@ jobs:
           BASE: ${{ github.event.pull_request.base.ref }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          git fetch origin "$BASE"
+          # No fetch here: checkout ran with fetch-depth 0, which already
+          # populated origin/*, and the credentials it would need are
+          # deliberately not persisted. A missing ref fails loudly below.
           if git merge-base --is-ancestor "origin/$BASE" "$HEAD_SHA"; then
             echo "Branch includes the latest origin/$BASE"
           else

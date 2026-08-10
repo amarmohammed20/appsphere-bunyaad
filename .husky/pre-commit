@@ -190,8 +190,8 @@ fi
 # ---------------------------------------------------------------------------
 # 4. Build config integrity
 # ---------------------------------------------------------------------------
-# Same script CI and the scheduled scan run, so a commit that passes here
-# cannot be rejected by CI for a different definition of "clean".
+# Same script the Security Gate runs, so a commit that passes here cannot be
+# rejected by CI for a different definition of "clean".
 # ---------------------------------------------------------------------------
 if [ -f scripts/security/check-build-config.sh ]; then
   sh scripts/security/check-build-config.sh || exit 1
