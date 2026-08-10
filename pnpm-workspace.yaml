@@ -10,6 +10,22 @@ blockExoticSubdeps: true
 # trustPolicy: no-downgrade is off for now — it blocks packages inside
 # eslint-config-next that lack provenance attestation. Revisit later.
 
+# Transitive packages held at a patched version until the parent ships one.
+# Each entry is an advisory the Security Gate blocks on; drop it once the
+# dependency that pulls it in has moved past the fixed version on its own.
+# brace-expansion is keyed per major line: 1.x and 5.x are both in the tree
+# and forcing either line onto the other's dependents would break them.
+# Every range is upper-bounded. An open '>=x' is satisfied by any later major,
+# so `brace-expansion@1: '>=1.1.18'` pulled 5.0.8 onto minimatch@3 — a major
+# the dependent was not written against, and still vulnerable.
+overrides:
+  sharp: '>=0.35.0 <1' # GHSA-f88m-g3jw-g9cj, via next
+  postcss: '>=8.5.18 <9' # GHSA-6g55-p6wh-862q, GHSA-r28c-9q8g-f849, via next
+  nanoid: '>=3.3.17 <4' # GHSA-2v37-7h3g-55p8, via postcss
+  js-yaml: '>=4.3.1 <5' # GHSA-5p4m-2wfm-xmqj, via eslint and shadcn
+  brace-expansion@1: '>=1.1.18 <2' # GHSA-rgw5-rvv9-x895, via eslint
+  brace-expansion@5: '>=5.0.9 <6' # GHSA-rgw5-rvv9-x895, via @sentry and shadcn
+
 # Install scripts are blocked by default; approve each one explicitly.
 allowBuilds:
   sharp: true # native image binary for next/image

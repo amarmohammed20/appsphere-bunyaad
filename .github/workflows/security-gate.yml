@@ -235,6 +235,9 @@ jobs:
         if: always()
         uses: docker://bridgecrew/checkov@sha256:2e6bbda38f5d41467c4db2d78522ede42a68a7060338ea72614766a4f9ae8b31 # 3.2.494
         with:
+          # The image entrypoint is an Action wrapper that ignores args: and
+          # builds `checkov -d $INPUT_DIRECTORY`, which crashes when unset.
+          entrypoint: checkov
           args: >-
             --directory .
             --framework github_actions dockerfile terraform

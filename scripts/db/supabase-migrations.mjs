@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 
 /** Set per repo via SUPABASE_PROJECT_REF (.env.local locally, a secret in CI). */
@@ -51,25 +52,19 @@ export const loadEnvFile = (filePath = envFilePath) => {
   }
 };
 
-/** Characters that would let an argument break out of a shell command. */
-const SHELL_METACHARACTERS = /[&|;$`<>(){}[\]!*?~\n\r"'\\]/;
+// The CLI's own JS entry point, run under this Node. Going through `pnpm exec`
+// would mean spawning a .cmd shim on Windows, which Node only allows with
+// shell: true — and a shell turns every argument into part of a command
+// string. Resolving the entry point keeps shell: false on every platform, so
+// arguments are passed as argv and cannot alter the command.
+const supabaseCli = createRequire(import.meta.url).resolve('supabase/dist/supabase.js');
 
-// shell: true because pnpm is a .cmd shim on Windows; the metacharacter
-// guard above keeps that from becoming command injection.
-export const runCli = (command, args) => {
-  for (const arg of args) {
-    if (SHELL_METACHARACTERS.test(String(arg))) {
-      throw new Error(
-        `Refusing to run ${command}: argument contains shell metacharacters and could alter the command: ${arg}`,
-      );
-    }
-  }
-
-  const result = spawnSync(command, args, {
+export const runSupabase = (args) => {
+  const result = spawnSync(process.execPath, [supabaseCli, ...args], {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
     env: process.env,
-    shell: process.platform === 'win32',
+    shell: false,
   });
 
   if (result.error) {
@@ -120,7 +115,7 @@ export const linkSupabaseProject = ({
   }
 
   console.warn(`${logPrefix} ${projectRef}...`);
-  runCli('pnpm', ['exec', 'supabase', 'link', '--project-ref', projectRef, '--yes']);
+  runSupabase(['link', '--project-ref', projectRef, '--yes']);
   return true;
 };
 
@@ -129,7 +124,7 @@ export const listLinkedMigrations = ({ logMessage } = {}) => {
     console.warn(logMessage);
   }
 
-  return runCli('pnpm', ['exec', 'supabase', 'migration', 'list', '--linked']);
+  return runSupabase(['migration', 'list', '--linked']);
 };
 
 export const parseMigrationRows = (output) =>
