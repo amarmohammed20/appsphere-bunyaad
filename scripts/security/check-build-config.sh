@@ -24,8 +24,8 @@ INFECTED=0
 # edits do not trip the check while an injected payload (which runs to
 # kilobytes of obfuscated code) still does.
 #   Actual sizes in this repo when written: postcss.config.mjs 94,
-#   next.config.ts 2207, eslint.config.mjs 3405. (No tailwind config file —
-#   Tailwind v4 is configured in globals.css.)
+#   next.config.ts 2207, eslint.config.mjs 3405, eslint.boundaries.mjs 6130.
+#   (No tailwind config file — Tailwind v4 is configured in globals.css.)
 #
 # Size alone is a weak signal and must not be relied on: a working exfiltration
 # stub fits in roughly 150 bytes, comfortably under any limit that still allows
@@ -45,6 +45,7 @@ tailwind.config.mjs:6000
 eslint.config.mjs:6000
 eslint.config.js:6000
 eslint.config.ts:6000
+eslint.boundaries.mjs:8000
 babel.config.js:2000
 webpack.config.js:4000
 "

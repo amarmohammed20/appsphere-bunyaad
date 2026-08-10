@@ -66,11 +66,10 @@ const fail = (message) => {
 
 /**
  * Returns every value assigned to a top-level pnpm-workspace.yaml key, in file
- * order. Reading only the first match is unsafe: YAML parsers take the LAST
- * duplicate key, so appending a second `minimumReleaseAge: 0` disables the
- * delay while a first-match check still reports the original value. Collect
- * them all, treat the last as effective, and treat duplicates as suspicious in
- * their own right.
+ * order. pnpm refuses duplicated keys outright ("duplicated mapping key"), so
+ * a duplicate cannot silently override the reviewed value — but it would
+ * surface as a confusing install error. The duplicate detection here exists so
+ * the tampering is reported as tampering instead.
  */
 const readWorkspaceValues = (key) => {
   const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -78,7 +77,11 @@ const readWorkspaceValues = (key) => {
   const values = [];
   let match;
   while ((match = pattern.exec(workspace)) !== null) {
-    values.push(match[1].replace(/#.*$/, '').trim());
+    // Strip one matched pair of surrounding quotes: pnpm honors
+    // `dangerouslyAllowAllBuilds: "true"`, so a quoted value must be read the
+    // same way pnpm reads it or the check passes while the bypass is live.
+    const value = match[1].replace(/#.*$/, '').trim();
+    values.push(value.replace(/^(['"])(.*)\1$/, '$2'));
   }
   return values;
 };
@@ -99,6 +102,13 @@ const readAllowBuilds = () => {
 // ---------------------------------------------------------------------------
 // 1. The install-script allowlist itself.
 // ---------------------------------------------------------------------------
+const allowBuildsSections = workspace.match(/^allowBuilds:[ \t]*$/gm) ?? [];
+if (allowBuildsSections.length > 1) {
+  fail(
+    `allowBuilds is set ${allowBuildsSections.length} times in pnpm-workspace.yaml. pnpm refuses duplicated keys, so a second section is tampering rather than configuration. Keep exactly one.`,
+  );
+}
+
 const allowBuilds = readAllowBuilds();
 
 if (allowBuilds === null) {
