@@ -60,7 +60,7 @@ for file in .github/workflows/*.yml .github/workflows/*.yaml; do
     report "$file" "Environment dump detected"
   fi
   if echo "$BODY" | grep -qE '(--no-verify|--skip-checks)'; then
-    echo "::warning file=$file::Security bypass flag present"
+    report "$file" "Security bypass flag present (--no-verify / --skip-checks)"
   fi
 done
 

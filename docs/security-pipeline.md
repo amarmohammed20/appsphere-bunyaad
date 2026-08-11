@@ -40,6 +40,25 @@ Within each layer the tools run first, then the custom script.
 Every script is linted by ShellCheck at L4, so a quoting bug in a security
 script cannot ship silently.
 
+## When cloning this repo into a new project
+
+Edit these — they name this repository or its people, and nothing fails if you
+forget, so they are easy to miss:
+
+- **`.github/CODEOWNERS`** — replace every owner with the new project's.
+- **`docs/COMMIT-SIGNING-AND-SSH.md`** — the repository URLs.
+- **`renovate.json`** — nothing to edit, but install the Renovate GitHub App or
+  the config does nothing.
+
+Then, in the new repository's settings:
+
+- Require a pull request before merging `main`, require the security gate as a
+  status check, and tick **"Do not allow bypassing"** — without that last one
+  an admin push skips every layer here.
+- Require review from code owners, or `CODEOWNERS` is decoration.
+- Turn on Dependabot security alerts. Free, and the only thing watching for a
+  CVE published against a dependency already installed.
+
 ## Rule for future changes
 
 Before deleting any custom script, prove the tool covers the same case at the

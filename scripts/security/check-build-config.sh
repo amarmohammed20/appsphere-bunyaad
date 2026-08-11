@@ -208,7 +208,7 @@ if [ "$INFECTED" -eq 1 ]; then
   echo ""
   echo "BUILD CONFIG INTEGRITY CHECK FAILED"
   echo "Do not run 'npm run build' or 'npm run dev' until this is resolved —"
-  echo "both execute these files. Contact @amarmohammed20."
+  echo "both execute these files. Raise it with a code owner (.github/CODEOWNERS)."
   exit 1
 fi
 

@@ -23,12 +23,27 @@ EXCLUDES=(
   ':(exclude).github/workflows/security-*'
 )
 
+# Reports file and line only. Printing the matched text would copy the secret
+# into a workflow log that is retained for 90 days and readable by anyone with
+# read access — and a red gate is exactly the log people open. `-l` would lose
+# the line number, so the numbers are cut out of the -n output instead.
+#
 # -e is required so a pattern starting with '-' is not read as a flag.
+indent() {
+  while IFS= read -r line; do
+    echo "  $line"
+  done <<< "$1"
+}
+
 scan() {
   local desc="$1"
   local pattern="$2"
-  if git grep -nIE -e "$pattern" -- "${CODE_PATHS[@]}" "${EXCLUDES[@]}" 2>/dev/null; then
+  local hits
+  hits=$(git grep -nIE -e "$pattern" -- "${CODE_PATHS[@]}" "${EXCLUDES[@]}" 2>/dev/null \
+    | cut -d: -f1,2 || true)
+  if [ -n "$hits" ]; then
     echo "::error::$desc"
+    indent "$hits"
     FOUND=1
   fi
 }
@@ -48,8 +63,10 @@ scan "Found hardcoded Resend API key" \
 scan "Found hardcoded OpenRouter API key" \
   'sk-or-v1-[A-Za-z0-9]{32,}'
 
+# Left boundary matters: unanchored, `sk-` matches inside ordinary kebab-case
+# prose — "task-management-dashboard-realtime-updates" reads as a key.
 scan "Found hardcoded OpenAI API key" \
-  'sk-(proj-)?[A-Za-z0-9_-]{32,}'
+  '(^|[^A-Za-z0-9_-])sk-(proj-)?[A-Za-z0-9_-]{32,}'
 
 scan "Found hardcoded Anthropic API key" \
   'sk-ant-[A-Za-z0-9_-]{32,}'
@@ -68,14 +85,20 @@ scan "Found a secret assigned a literal value instead of process.env" \
   '(SUPABASE_SERVICE_ROLE_KEY|SUPABASE_SERVICE_ROLE|SUPABASE_ACCESS_TOKEN|SUPABASE_DB_URL|RESEND_API_KEY|OPENROUTER_API_KEY|SLACK_BOT_TOKEN|COMPANIES_HOUSE_[A-Z_]*)["'"'"']?[[:space:]]*[:=][[:space:]]*["'"'"'][^$][^"'"'"']{8,}'
 
 # service_role JWT bypasses row level security.
-if git grep -nI -e 'service_role' -- "${CODE_PATHS[@]}" "${EXCLUDES[@]}" 2>/dev/null | grep -E 'eyJ[A-Za-z0-9_-]{20,}'; then
+SERVICE_ROLE_HITS=$(git grep -nI -e 'service_role' -- "${CODE_PATHS[@]}" "${EXCLUDES[@]}" 2>/dev/null \
+  | grep -E 'eyJ[A-Za-z0-9_-]{20,}' | cut -d: -f1,2 || true)
+if [ -n "$SERVICE_ROLE_HITS" ]; then
   echo "::error::Found hardcoded Supabase service_role key — this bypasses RLS entirely"
+  indent "$SERVICE_ROLE_HITS"
   FOUND=1
 fi
 
 # Private keys: scan every tracked file, extension-independent.
-if git grep -nIE -e '-----BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----' -- . "${EXCLUDES[@]}" 2>/dev/null; then
+PRIVATE_KEY_HITS=$(git grep -nIE -e '-----BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----' -- . "${EXCLUDES[@]}" 2>/dev/null \
+  | cut -d: -f1,2 || true)
+if [ -n "$PRIVATE_KEY_HITS" ]; then
   echo "::error::Found embedded private key"
+  indent "$PRIVATE_KEY_HITS"
   FOUND=1
 fi
 

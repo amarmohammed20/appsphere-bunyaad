@@ -60,7 +60,7 @@ case "$ORIGIN_URL" in
     echo ""
     echo "${RED}  BLOCKED: this clone uses an HTTPS remote ($ORIGIN_URL).${RESET}"
     echo "  Team policy is SSH (docs/COMMIT-SIGNING-AND-SSH.md, Step 3). Run:"
-    echo "    git remote set-url origin git@github.com:amarmohammed20/appsphere-bunyaad.git"
+    echo "    git remote set-url origin git@github.com:<owner>/<repo>.git"
     exit 1
     ;;
 esac
@@ -135,7 +135,7 @@ for file in $STAGED_FILES; do
   LINES=$(grep -nE 'sk-ant-[A-Za-z0-9_-]{32,}' "$file" 2>/dev/null | cut -d: -f1 | tr '\n' ',')
   [ -n "$LINES" ] && report_secret "Anthropic API key" "$file" "$LINES"
 
-  LINES=$(grep -nE 'sk-(proj-)?[A-Za-z0-9_-]{32,}' "$file" 2>/dev/null | cut -d: -f1 | tr '\n' ',')
+  LINES=$(grep -nE '(^|[^A-Za-z0-9_-])sk-(proj-)?[A-Za-z0-9_-]{32,}' "$file" 2>/dev/null | cut -d: -f1 | tr '\n' ',')
   [ -n "$LINES" ] && report_secret "OpenAI API key" "$file" "$LINES"
 
   LINES=$(grep -nE 'xox[baprs]-[A-Za-z0-9-]{10,}|hooks\.slack\.com/services/[A-Za-z0-9/]{20,}' "$file" 2>/dev/null | cut -d: -f1 | tr '\n' ',')

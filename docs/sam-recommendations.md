@@ -1,6 +1,7 @@
 # Sam Clusker recommendations
 
-Source: `C:\Users\DELL\Downloads\sam-recommendations.pdf`
+Source: "Platform & Security Recommendations", ITC / Teleflow, prepared by Sam
+Clusker, 4 August 2026 (PDF held by AppSphere).
 
 The implementation trackers below are maintained by AppSphere and are not part
 of Sam's original review. The source transcription that follows preserves the
