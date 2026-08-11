@@ -1,0 +1,95 @@
+# ============================================================================
+# CODEOWNERS — Mandatory Reviewers for Security-Critical Files
+# ============================================================================
+# GitHub automatically requests reviews from these owners when a PR touches
+# these paths. Combined with branch protection requiring Code Owner approval,
+# no security-critical file can change without the right person reviewing it.
+#
+# Two names on a path does NOT mean both must approve — GitHub requires one of
+# them. The protection comes from the fact that nobody can approve their own
+# PR, so a second pair of eyes is always involved. If you want two signatures,
+# set "Required approvals: 2" in branch protection as well.
+#
+# The sister repo (appsphere) is the one the postcss.config infostealer
+# actually reached, twice. This boilerplate inherits the same protections so
+# every project cloned from it starts with them.
+# ============================================================================
+
+# --------------------------------------------------------------------------
+# BUILD-TIME CONFIG FILES — the file class that was infected there
+# These execute with full Node.js access during `pnpm run build`.
+# babel/webpack/tailwind configs do not exist here yet; the entries make any
+# future one protected from its first commit.
+# --------------------------------------------------------------------------
+next.config.*                       @amarmohammed20 @mustafazuberi
+postcss.config.*                    @amarmohammed20 @mustafazuberi
+tailwind.config.*                   @amarmohammed20 @mustafazuberi
+eslint.config.*                     @amarmohammed20 @mustafazuberi
+# Imported by eslint.config.mjs and executes during every lint; it also
+# defines the architecture boundaries, so weakening it disables that gate.
+eslint.boundaries.mjs               @amarmohammed20 @mustafazuberi
+babel.config.*                      @amarmohammed20 @mustafazuberi
+webpack.config.*                    @amarmohammed20 @mustafazuberi
+tsconfig.json                       @amarmohammed20
+instrumentation.ts                  @amarmohammed20 @mustafazuberi
+instrumentation-client.ts           @amarmohammed20 @mustafazuberi
+sentry.*.config.ts                  @amarmohammed20 @mustafazuberi
+
+# --------------------------------------------------------------------------
+# PACKAGE MANAGEMENT — dependency injection attacks
+# pnpm-workspace.yaml holds the install-script allowlist and the release-age
+# delay (pnpm v11 reads only auth and registry from .npmrc).
+# --------------------------------------------------------------------------
+package.json                        @amarmohammed20 @mustafazuberi
+pnpm-lock.yaml                      @amarmohammed20 @mustafazuberi
+pnpm-workspace.yaml                 @amarmohammed20 @mustafazuberi
+.npmrc                              @amarmohammed20 @mustafazuberi
+
+# --------------------------------------------------------------------------
+# CI/CD WORKFLOWS — pipeline takeover prevention
+# --------------------------------------------------------------------------
+.github/                            @amarmohammed20 @mustafazuberi
+
+# --------------------------------------------------------------------------
+# SECURITY SCRIPTS — weakening a detector precedes injecting a payload
+# --------------------------------------------------------------------------
+scripts/security/                   @amarmohammed20 @mustafazuberi
+
+# --------------------------------------------------------------------------
+# GIT HOOKS — can disable every local security check
+# --------------------------------------------------------------------------
+.husky/                             @amarmohammed20 @mustafazuberi
+.lintstagedrc*                      @amarmohammed20
+
+# --------------------------------------------------------------------------
+# GIT CONFIG — track-covering prevention
+# --------------------------------------------------------------------------
+.gitignore                          @amarmohammed20 @mustafazuberi
+.gitattributes                      @amarmohammed20
+
+# --------------------------------------------------------------------------
+# DATABASE — migrations and RLS policies can expose or destroy data
+# --------------------------------------------------------------------------
+supabase/                           @amarmohammed20
+src/types/database.types.ts         @amarmohammed20
+
+# --------------------------------------------------------------------------
+# AUTH & REQUEST BOUNDARY
+# Next 16 renamed middleware to proxy; feature api/ folders are the HTTP
+# surface in this repo's layout.
+# --------------------------------------------------------------------------
+src/proxy.ts                        @amarmohammed20
+src/lib/supabase/                   @amarmohammed20
+src/lib/auth/                       @amarmohammed20
+src/features/*/api/                 @amarmohammed20
+
+# --------------------------------------------------------------------------
+# SCRIPTS — arbitrary code execution
+# --------------------------------------------------------------------------
+scripts/                            @amarmohammed20
+
+# --------------------------------------------------------------------------
+# DEPLOYMENT — none of these exist yet; protected from their first commit
+# --------------------------------------------------------------------------
+vercel.json                         @amarmohammed20
+Dockerfile*                         @amarmohammed20

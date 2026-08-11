@@ -43,6 +43,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          # Without this, checkout leaves a usable GITHUB_TOKEN in the repo's
+          # git config for every later step to read. Nothing here talks to the
+          # remote after checkout, so it costs nothing to drop.
+          persist-credentials: false
 
       - name: Detect changed database files
         id: changed
@@ -59,18 +63,11 @@ jobs:
             echo "No schema or migration files changed. Nothing can have drifted."
           fi
 
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - name: Setup
         if: steps.changed.outputs.changed == 'true'
-
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        if: steps.changed.outputs.changed == 'true'
+        uses: ./.github/actions/setup
         with:
           node-version: ${{ inputs.node-version }}
-          cache: pnpm
-
-      - name: Install dependencies
-        if: steps.changed.outputs.changed == 'true'
-        run: pnpm install --frozen-lockfile
 
       - name: Start local Supabase
         if: steps.changed.outputs.changed == 'true'
@@ -100,6 +97,10 @@ jobs:
         with:
           # The changed-files diff below needs history beyond the PR.
           fetch-depth: 0
+          # Without this, checkout leaves a usable GITHUB_TOKEN in the repo's
+          # git config for every later step to read. Nothing here talks to the
+          # remote after checkout, so it costs nothing to drop.
+          persist-credentials: false
 
       - name: Detect changed migration files
         id: changed-migrations
@@ -128,16 +129,10 @@ jobs:
       - name: Tables have row level security
         run: node scripts/db/check-rls.mjs
 
-      # Reads the pinned version from packageManager in package.json.
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
-
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - name: Setup
+        uses: ./.github/actions/setup
         with:
           node-version: ${{ inputs.node-version }}
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
 
       - name: List local and remote migrations
         env:

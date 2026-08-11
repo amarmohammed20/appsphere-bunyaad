@@ -28,7 +28,8 @@
     "check:rls": "node scripts/db/check-rls.mjs",
     "verify:db-reset": "node scripts/db/verify-reset-db.mjs",
     "check:schema-matches-migrations": "node scripts/db/check-schema-matches-migrations.mjs",
-    "check:colours": "node scripts/check-raw-colours.mjs"
+    "check:colours": "node scripts/check-raw-colours.mjs",
+    "check:supply-chain": "node scripts/security/check-supply-chain-settings.mjs"
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx,mjs,cjs}": [

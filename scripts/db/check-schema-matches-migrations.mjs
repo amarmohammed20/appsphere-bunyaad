@@ -10,16 +10,23 @@
 // Needs Docker, the local stack up, and `pnpm db:reset` already run.
 
 import { spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
+
+// The CLI's own JS entry point, run under this Node. Going through `pnpm exec`
+// would mean spawning a .cmd shim on Windows, which Node only allows with
+// shell: true — and a shell turns every argument into part of a command
+// string. Resolving the entry point keeps shell: false on every platform.
+const supabaseCli = createRequire(import.meta.url).resolve('supabase/dist/supabase.js');
 
 // Which stream the CLI uses varies by platform, and the JSON summary is not
 // guaranteed at all — an earlier version of this script read stdout only and
 // failed in CI while passing on Windows. Read both and decide on content.
 const runDiff = () => {
-  const result = spawnSync('pnpm', ['exec', 'supabase', 'db', 'diff'], {
+  const result = spawnSync(process.execPath, [supabaseCli, 'db', 'diff'], {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
     env: process.env,
-    shell: process.platform === 'win32',
+    shell: false,
   });
 
   if (result.error) {

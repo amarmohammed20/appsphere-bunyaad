@@ -1,0 +1,29 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": [
+    "Keep minimumReleaseAge aligned with pnpm-workspace.yaml: 4320 minutes equals 3 days. When the pnpm policy moves to 7 or 14 days, change both values together."
+  ],
+  "extends": ["config:recommended", "group:monorepos"],
+  "minimumReleaseAge": "3 days",
+  "internalChecksFilter": "strict",
+  "prCreation": "not-pending",
+  "dependencyDashboard": true,
+  "schedule": ["before 6am on Monday"],
+  "timezone": "Europe/London",
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2,
+  "automerge": false,
+  "packageRules": [
+    {
+      "description": ["Group patch and minor npm updates into one review"],
+      "matchManagers": ["npm"],
+      "matchUpdateTypes": ["patch", "minor"],
+      "groupName": "non-major npm dependencies"
+    },
+    {
+      "description": ["Require explicit dashboard approval before major update PRs"],
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
+    }
+  ]
+}

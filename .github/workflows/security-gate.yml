@@ -1,0 +1,42 @@
+name: Security Gate
+
+on:
+  pull_request:
+    # ready_for_review matters: the job below skips drafts, and without this
+    # event, marking a draft ready never re-runs it — so a required check
+    # would sit unsatisfied forever.
+    types: [opened, synchronize, reopened, ready_for_review]
+    # Every branch. `branches: [main]` would silently run no checks at all on
+    # pull requests targeting a develop or release branch.
+  # Also on push: a direct push to main never opens a pull request, and the
+  # secret scan below is the only thing watching that path.
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# A new push makes the previous run's answer irrelevant.
+concurrency:
+  group: security-gate-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+# The real ceiling on what the called workflow can do. Declared here rather
+# than relied on there, because a called workflow can only reduce the caller's
+# grant — and whoever controls the called file controls what it declares.
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  # Do not rename. The required status check is "security-gate / Security
+  # Check", built from this job id and the called job's name.
+  security-gate:
+    # Drafts are still being written; running the full suite on every push is noise.
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    uses: ./.github/workflows/security-gate-reusable.yml
+    # A called workflow sees no secrets unless they are passed. Without this,
+    # SEMGREP_APP_TOKEN reads as empty and Semgrep drops to anonymous,
+    # rate-limited registry fetches. Named rather than `secrets: inherit` —
+    # inherit hands over every secret the caller holds, which is the wrong
+    # default for a file client repos are meant to call.
+    secrets:
+      SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
