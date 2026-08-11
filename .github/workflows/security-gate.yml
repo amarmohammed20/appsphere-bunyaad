@@ -1,347 +1,42 @@
-# Layers, in priority order:
-#   L1 Build config · L2 Secrets · L3 Supply chain
-#   L4 CI/CD integrity · L5 SAST · L6 Container
-# Every step is `if: always()` so one run reports every layer's findings.
-
-name: 'Security Gate'
+name: Security Gate
 
 on:
   pull_request:
-    branches: [main]
-    types: [opened, reopened, synchronize, ready_for_review]
+    # ready_for_review matters: the job below skips drafts, and without this
+    # event, marking a draft ready never re-runs it — so a required check
+    # would sit unsatisfied forever.
+    types: [opened, synchronize, reopened, ready_for_review]
+    # Every branch. `branches: [main]` would silently run no checks at all on
+    # pull requests targeting a develop or release branch.
+  # Also on push: a direct push to main never opens a pull request, and the
+  # secret scan below is the only thing watching that path.
   push:
     branches: [main]
   workflow_dispatch:
 
-permissions:
-  contents: read
-  pull-requests: write
-  security-events: write
-
+# A new push makes the previous run's answer irrelevant.
 concurrency:
   group: security-gate-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+# The real ceiling on what the called workflow can do. Declared here rather
+# than relied on there, because a called workflow can only reduce the caller's
+# grant — and whoever controls the called file controls what it declares.
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
-  security-check:
-    name: 'Security Check'
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2
-        with:
-          egress-policy: audit
-
-      - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          # Later steps run third-party code (pnpm install, build config);
-          # do not leave the token in .git/config for them.
-          persist-credentials: false
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
-
-      - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 22
-          cache: pnpm
-
-      # --- L1: Build config ---
-
-      - name: 'L1: Build config infection check'
-        id: build-config
-        if: always()
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: sh scripts/security/check-build-config-diff.sh
-
-      - name: 'L1: Post build config report'
-        if: always() && github.event_name == 'pull_request'
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
-        continue-on-error: true
-        # env, not `${{ }}` in script — those are pasted in as source and any
-        # value containing a quote would execute.
-        env:
-          SEVERITY: ${{ steps.build-config.outputs.severity }}
-          CRITICAL_COUNT: ${{ steps.build-config.outputs.critical_count }}
-          HIGH_COUNT: ${{ steps.build-config.outputs.high_count }}
-        with:
-          script: |
-            const fs = require('fs');
-            let findings = '';
-            try { findings = fs.readFileSync('/tmp/findings.txt', 'utf8'); } catch(e) {}
-            const severity = process.env.SEVERITY || 'info';
-            const criticalCount = parseInt(process.env.CRITICAL_COUNT) || 0;
-            const highCount = parseInt(process.env.HIGH_COUNT) || 0;
-
-            // No medium tier: check-build-config-diff.sh scores every finding
-            // as critical or high, so a Medium row would always read 0.
-            const labels = {
-              critical: 'CRITICAL — Mandatory senior review required',
-              high: 'HIGH — Security-sensitive changes detected',
-              info: 'CLEAN — No security concerns'
-            };
-
-            // Array + join, not a template literal: leading whitespace makes
-            // GitHub render the whole comment as a code block.
-            const body = [
-              '## Build Config Integrity Report',
-              '',
-              `**Severity: ${labels[severity]}**`,
-              '',
-              '| Level | Count |',
-              '|-------|-------|',
-              `| Critical | ${criticalCount} |`,
-              `| High | ${highCount} |`,
-              '',
-              '```',
-              findings.trim() || 'No security concerns detected.',
-              '```',
-              severity === 'critical'
-                ? '\n**This PR touches build-time config and requires code-owner approval before merge.**'
-                : '',
-            ].join('\n');
-
-            const comments = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-            });
-            const existing = comments.data.find(c => c.body.includes('Build Config Integrity Report'));
-            if (existing) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner, repo: context.repo.repo,
-                comment_id: existing.id, body: body,
-              });
-            } else {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner, repo: context.repo.repo,
-                issue_number: context.issue.number, body: body,
-              });
-            }
-
-      # --- L2: Secrets ---
-
-      # The CLI container, not gitleaks-action: that action requires a paid
-      # GITLEAKS_LICENSE for any repository owned by an organization, which is
-      # where a clone of this boilerplate normally lives. The container has no
-      # such restriction and pins to an exact build.
-      - name: 'L2: Gitleaks'
-        id: gitleaks
-        if: always()
-        uses: docker://ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f # v8.30.1
-        with:
-          args: dir /github/workspace --no-banner --redact --exit-code 1
-
-      - name: 'L2: TruffleHog'
-        id: trufflehog
-        if: always()
-        uses: trufflesecurity/trufflehog@6f3c981e7b77f235fd2702dd74af25fc4b72bf11 # v3.96.0
-        with:
-          extra_args: >-
-            --only-verified
-            --results=verified,unknown
-
-      - name: 'L2: Custom secret patterns'
-        id: custom-secrets
-        if: always()
-        run: bash scripts/security/check-secrets.sh
-
-      # --- L3: Supply chain ---
-      # dependency-review-action is not used: it needs GHAS, and pnpm audit
-      # below covers known-vulnerable dependencies.
-
-      - name: 'L3: Supply chain settings intact'
-        id: supply-chain
-        if: always()
-        run: node scripts/security/check-supply-chain-settings.mjs
-
-      - name: 'L3: Lockfile integrity'
-        id: lockfile
-        if: always() && github.event_name == 'pull_request'
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: sh scripts/security/check-lockfile.sh
-
-      # The only step that executes third-party code, so it is the one step
-      # that must not run under `always()`. The two checks above exist to be
-      # believed before install: a substituted registry or a weakened
-      # allowlist is exactly what a postinstall script would arrive through.
-      # `lockfile` is compared against 'failure' rather than 'success' because
-      # it is skipped on push events.
-      - name: 'L3: Install dependencies'
-        if: >-
-          always()
-          && steps.supply-chain.outcome == 'success'
-          && steps.lockfile.outcome != 'failure'
-        run: pnpm install --frozen-lockfile
-
-      - name: 'L3: pnpm audit (production)'
-        id: pnpm-audit
-        if: always()
-        run: |
-          pnpm audit --audit-level=high --prod 2>&1 || {
-            echo "::error::High or critical vulnerabilities in production dependencies — see output above"
-            exit 1
-          }
-          echo "No high/critical vulnerabilities in production dependencies"
-
-      # Dev deps run during install and build with access to the same secrets;
-      # gate them at the same threshold as production.
-      - name: 'L3: pnpm audit (dev)'
-        if: always()
-        run: |
-          pnpm audit --audit-level=high --dev 2>&1 || {
-            echo "::error::High or critical vulnerabilities in dev dependencies — see output above"
-            exit 1
-          }
-          echo "No high/critical vulnerabilities in dev dependencies"
-
-      # --- L4: CI/CD integrity ---
-      # Tools first, then the custom fallback. Pinning is enforced by zizmor
-      # below and by scripts/check-action-pinning.mjs in the PR checks, which
-      # hard-fails on tag pins — no L4 pinning step is needed here.
-
-      - name: 'L4: ShellCheck'
-        if: always()
-        uses: docker://koalaman/shellcheck@sha256:61862eba1fcf09a484ebcc6feea46f1782532571a34ed51fedf90dd25f925a8d # v0.11.0
-        with:
-          args: >-
-            scripts/security/check-app-code.sh
-            scripts/security/check-build-config.sh
-            scripts/security/check-build-config-diff.sh
-            scripts/security/check-lockfile.sh
-            scripts/security/check-secrets.sh
-            scripts/security/check-workflow-integrity.sh
-            scripts/security/setup-signed-commits.sh
-            .husky/pre-commit
-
-      # Also runs ShellCheck on every embedded `run:` block.
-      - name: 'L4: actionlint'
-        if: always()
-        uses: docker://rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 # v1.7.12
-        with:
-          args: -color
-
-      # Console mode: SARIF upload needs GHAS.
-      - name: 'L4: zizmor'
-        if: always()
-        uses: zizmorcore/zizmor-action@3dc1ecc9bcb9e94e9b2c709687979e1298497054 # v0.6.2
-        with:
-          inputs: .github/workflows/
-          version: '1.29.0'
-          # Default confidence: artipacked and template-injection sit at low.
-          online-audits: true
-          advanced-security: false
-
-      # terraform and dockerfile frameworks are enabled ahead of time so the
-      # first such file is covered without another workflow change.
-      - name: 'L4: checkov'
-        if: always()
-        uses: docker://bridgecrew/checkov@sha256:2e6bbda38f5d41467c4db2d78522ede42a68a7060338ea72614766a4f9ae8b31 # 3.2.494
-        with:
-          # The image entrypoint is an Action wrapper that ignores args: and
-          # builds `checkov -d $INPUT_DIRECTORY`, which crashes when unset.
-          entrypoint: checkov
-          args: >-
-            --directory .
-            --framework github_actions dockerfile terraform
-            --compact
-            --quiet
-
-      - name: 'L4: Workflow security analysis (custom)'
-        id: cicd-check
-        if: always()
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: sh scripts/security/check-workflow-integrity.sh
-
-      # --- L5: SAST ---
-      # CodeQL is not used: it needs GHAS. Semgrep covers OWASP top ten,
-      # injection and secrets.
-      #
-      # The four hand-written greps below were tested against a deliberately
-      # vulnerable file (2026-08-11):
-      #   - SQL and XSS: Semgrep with our rule packs did NOT flag them at all.
-      #   - path traversal and JWT: Semgrep did flag them, but at WARNING
-      #     severity — the `--severity ERROR` filter above drops those, so in
-      #     this pipeline they only reach the log via the greps.
-      # Delete a grep only after proving Semgrep catches its case at ERROR.
-
-      - name: 'L5: Semgrep scan'
-        id: semgrep
-        if: always()
-        # Bump this digest deliberately, in its own PR.
-        uses: docker://semgrep/semgrep@sha256:65dcd4408adda7c183a6b4550cb1e9b19f7f627a6fbb7e0559bd466bedc44d7b # 1.172.0
-        with:
-          # The image ships without an entrypoint; state it explicitly.
-          entrypoint: semgrep
-          args: >-
-            scan
-            --config "p/default"
-            --config "p/security-audit"
-            --config "p/secrets"
-            --config "p/nextjs"
-            --config "p/react"
-            --config "p/typescript"
-            --config "p/sql-injection"
-            --config "p/xss"
-            --config "p/owasp-top-ten"
-            --config "p/supply-chain"
-            --error
-            --severity ERROR
-            --exclude "node_modules"
-            --exclude ".next"
-            --exclude "cypress"
-            .
-        env:
-          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
-
-      - name: 'L5: Custom SAST checks (SQL / XSS / path traversal / JWT)'
-        id: custom-sast
-        if: always()
-        run: sh scripts/security/check-app-code.sh
-
-      # --- L6: Container ---
-      # No hand-written compose check: Trivy config scan below covers privileged
-      # mode, hardcoded credentials and host mounts on any compose.yaml that
-      # lands, and there is none in the repo today.
-
-      - name: 'L6: Trivy filesystem scan'
-        if: always()
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          # Table, not SARIF: SARIF upload needs GHAS.
-          format: 'table'
-          severity: 'HIGH,CRITICAL'
-          # Do not block on vulnerabilities with no released patch.
-          ignore-unfixed: true
-          # node_modules exists by now (install runs at L3). Trivy secret-scans
-          # every file, and packages ship test keys and sample compose files
-          # that would fail this gate for reasons unrelated to our code.
-          # Dependency CVEs come from pnpm-lock.yaml, so nothing is lost.
-          skip-dirs: '.next,coverage,cypress,node_modules'
-          exit-code: '1'
-
-      # Finds no supported files today — there is no Dockerfile, compose file
-      # or IaC in the repo. Blocking anyway, so the first one that lands is
-      # gated rather than waiting for someone to remember to arm this.
-      - name: 'L6: Trivy config scan'
-        if: always()
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          scan-type: 'config'
-          scan-ref: '.'
-          format: 'table'
-          severity: 'HIGH,CRITICAL'
-          skip-dirs: 'node_modules'
-          exit-code: '1'
+  # Do not rename. The required status check is "security-gate / Security
+  # Check", built from this job id and the called job's name.
+  security-gate:
+    # Drafts are still being written; running the full suite on every push is noise.
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    uses: ./.github/workflows/security-gate-reusable.yml
+    # A called workflow sees no secrets unless they are passed. Without this,
+    # SEMGREP_APP_TOKEN reads as empty and Semgrep drops to anonymous,
+    # rate-limited registry fetches. Named rather than `secrets: inherit` —
+    # inherit hands over every secret the caller holds, which is the wrong
+    # default for a file client repos are meant to call.
+    secrets:
+      SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}

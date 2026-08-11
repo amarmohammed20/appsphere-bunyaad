@@ -9,10 +9,6 @@ on:
         description: Node version to run the checks on.
         type: string
         default: '22'
-      secret-scan:
-        description: Scan the pull request diff for committed secrets.
-        type: boolean
-        default: true
 
 # Not a security boundary. A called workflow can only reduce what the caller
 # granted, never raise it, and anyone who can move the v1 tag rewrites this
@@ -31,8 +27,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # Full history: the secret scan and the base-branch check below both
-          # need commits older than the pull request.
+          # Full history: the base-branch check below needs commits older than
+          # the pull request.
           fetch-depth: 0
           # Without this, checkout leaves a usable GITHUB_TOKEN in the repo's
           # git config, and this job then runs `pnpm install` and `pnpm run
@@ -60,7 +56,7 @@ jobs:
             exit 1
           fi
 
-      # Needs no dependencies, so it runs before install with the secret scan.
+      # Needs no dependencies, so it runs before install and fails in seconds.
       - name: Actions are pinned to a commit
         run: node scripts/check-action-pinning.mjs
 
@@ -68,29 +64,14 @@ jobs:
       - name: Colours come from tokens
         run: node scripts/check-raw-colours.mjs
 
-      # Before install, so a leaked key fails in seconds rather than minutes.
-      # Guarded on the event as well: outside a pull request there is no base
-      # SHA, and the action would silently switch to scanning all history.
-      - name: Scan the diff for secrets
-        if: inputs.secret-scan && github.event_name == 'pull_request'
-        uses: trufflesecurity/trufflehog@6f3c981e7b77f235fd2702dd74af25fc4b72bf11 # v3.96.0
-        with:
-          path: ./
-          base: ${{ github.event.pull_request.base.sha }}
-          head: HEAD
+      # Secret scanning lives in security-gate, which runs Gitleaks, TruffleHog
+      # and the custom patterns — and fires on push to main as well, so it
+      # covers the direct-push path a pull-request-only scan cannot see.
 
-      # Reads the pinned version from packageManager in package.json.
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
-
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - name: Setup
+        uses: ./.github/actions/setup
         with:
           node-version: ${{ inputs.node-version }}
-          cache: pnpm
-
-      # --frozen-lockfile: fail rather than silently resolve a different tree
-      # than the one that was reviewed.
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
 
       # Cheapest first, so the common failures report soonest.
       - name: Formatting

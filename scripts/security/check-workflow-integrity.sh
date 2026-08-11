@@ -10,6 +10,11 @@
 
 set -u
 
+# The file holding the layer steps. Named once: it is both the file this scan
+# must skip (it spells out the patterns below) and the file whose ShellCheck
+# target list is verified at the end.
+GATE=".github/workflows/security-gate-reusable.yml"
+
 echo "=== CI/CD PIPELINE INTEGRITY ANALYSIS ==="
 FAILED=0
 
@@ -27,11 +32,15 @@ report() {
   fi
 }
 
-for file in .github/workflows/*.yml .github/workflows/*.yaml; do
+# Composite actions too: they run inline in the calling job, with the same
+# permissions and the same access to secrets, so the patterns below matter
+# there just as much.
+for file in .github/workflows/*.yml .github/workflows/*.yaml \
+  .github/actions/*/action.yml .github/actions/*/action.yaml; do
   [ -f "$file" ] || continue
 
-  # Self-skip: our rule strings would match this file.
-  if [ "$file" = ".github/workflows/security-gate.yml" ]; then
+  # Self-skip: the gate spells out the patterns below, so it matches itself.
+  if [ "$file" = "$GATE" ]; then
     echo "Skipping self: $file"
     continue
   fi
@@ -67,7 +76,6 @@ done
 # The gate lists its ShellCheck targets literally, so a script added later is
 # linted only if someone remembers to add it. Nothing would report the gap:
 # ShellCheck stays silent about files it was never given.
-GATE=".github/workflows/security-gate.yml"
 if [ -f "$GATE" ]; then
   for script in scripts/security/*.sh; do
     [ -f "$script" ] || continue

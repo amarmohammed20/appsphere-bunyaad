@@ -119,7 +119,10 @@ they are _not_ caught.
 | Input          | Default | Use                                        |
 | -------------- | ------- | ------------------------------------------ |
 | `node-version` | `22`    | Override for a repo pinned to another Node |
-| `secret-scan`  | `true`  | Disable only if the repo scans elsewhere   |
+
+Secret scanning is not an input here — it lives in `security-gate-reusable.yml`,
+which also runs on push to main and so covers the direct-push path this
+workflow cannot see. That file takes a `secret-scan` input.
 
 ```yaml
 uses: amarmohammed20/appsphere-bunyaad/.github/workflows/pr-checks-reusable.yml@v1
@@ -141,6 +144,13 @@ has to exist there. A clone of this template has all of it.
   `test:boundaries`, `build`.
 - **`scripts/check-action-pinning.mjs`.** Deleting it fails the run with a
   module-not-found error rather than an explanation.
+- **`.github/actions/setup/`.** The called workflows use `uses: ./.github/`
+  `actions/setup`, and a local path resolves against the **caller's** checkout,
+  not this repository. A repo that calls the workflow without being a clone
+  fails with "can't find action.yml". Note the consequence: a clone runs the
+  setup action from its own tree, so a fix to that file here does **not** reach
+  it the way a workflow fix does — re-sync it, or move it to its own tagged
+  repository if that becomes a problem.
 - Secrets are not inherited. Pass named secrets in the caller job if a run
   needs them — never `secrets: inherit`, which exposes all of them.
 

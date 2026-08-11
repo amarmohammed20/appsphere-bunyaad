@@ -1,0 +1,33 @@
+# The pnpm + Node + install block, in one place. It was repeated in four jobs
+# across three workflows, so a version bump meant four edits and one of them
+# was always missed.
+name: Setup
+description: Install pnpm and Node, restore the pnpm store, and install dependencies.
+
+inputs:
+  node-version:
+    description: Node version to run on.
+    required: false
+    default: '22'
+  install:
+    description: Run `pnpm install --frozen-lockfile`. Set false to only provision the toolchain.
+    required: false
+    default: 'true'
+
+runs:
+  using: composite
+  steps:
+    # Reads the pinned version from packageManager in package.json.
+    - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+
+    - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: pnpm
+
+    # --frozen-lockfile: fail rather than silently resolve a different tree
+    # than the one that was reviewed.
+    - name: Install dependencies
+      if: inputs.install == 'true'
+      shell: bash
+      run: pnpm install --frozen-lockfile
