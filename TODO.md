@@ -179,8 +179,7 @@ Source: App Build Guard Rails.
 ## 9. Folder structure
 
 Decided: **feature-first**. Reasoning in
-[docs/folder-structure.md](docs/folder-structure.md), shareable summary in
-[docs/folder-structure-options.md](docs/folder-structure-options.md).
+[docs/folder-structure.md](docs/folder-structure.md).
 
 - [x] Create `src/features/` — one folder per domain
 - [x] Create `src/components/ui/` (shadcn) and `src/components/shared/`

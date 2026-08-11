@@ -6,8 +6,9 @@ Two parts. The **organisation** is set up once for AppSphere and never again.
 The **project** is set up per app — bunyaad has one, and so will every repo
 cloned from it.
 
-The rationale for the code side lives in
-[sentry-and-error-handling-plan.md](sentry-and-error-handling-plan.md).
+The code-side decisions (PII scrubbing, error filtering, runtime configs)
+are in the source files under `src/lib/sentry/` and the instrumentation
+files at the project root.
 
 ---
 
