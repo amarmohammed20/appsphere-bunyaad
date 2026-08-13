@@ -11,6 +11,14 @@ const CREATE_TABLE = /create\s+table\s+(?:if\s+not\s+exists\s+)?([^\s(]+)/gi;
 const ENABLE_RLS = /alter\s+table\s+(?:only\s+)?([^\s]+)\s+enable\s+row\s+level\s+security/gi;
 const DISABLE_RLS = /alter\s+table\s+(?:only\s+)?([^\s]+)\s+disable\s+row\s+level\s+security/gi;
 
+// Strip comments and string literals so their contents aren't read as DDL.
+function stripNonDdl(sql) {
+  return sql
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/--[^\n]*/g, ' ')
+    .replace(/'(?:[^']|'')*'/g, "''");
+}
+
 // `"public"."users"` and `public.users` both become `public.users`.
 function normaliseTableName(raw) {
   const parts = raw.replaceAll('"', '').split('.');
@@ -32,7 +40,7 @@ const createdIn = new Map();
 const rlsEnabled = new Set();
 
 for (const file of migrationFiles) {
-  const sql = readFileSync(path.join(MIGRATIONS_DIR, file), 'utf8');
+  const sql = stripNonDdl(readFileSync(path.join(MIGRATIONS_DIR, file), 'utf8'));
 
   for (const table of collectMatches(sql, CREATE_TABLE)) {
     if (table.startsWith('public.') && !createdIn.has(table)) {

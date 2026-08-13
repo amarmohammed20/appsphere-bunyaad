@@ -241,6 +241,9 @@ Colours come from semantic tokens (`bg-primary`, `text-foreground`,
 `globals.css` rather than a find-and-replace. `pnpm check:colours`
 enforces this in CI and pre-commit.
 
+[DESIGN.md](DESIGN.md) documents the design system — tokens, dark mode,
+accessibility baseline, and the retheming steps for a client project.
+
 ## Error handling
 
 Sentry on client, server, and edge runtimes. Disabled without a DSN — a
@@ -361,6 +364,7 @@ and geolocation.
 
 | Document                                                         | Type        | Covers                                            |
 | ---------------------------------------------------------------- | ----------- | ------------------------------------------------- |
+| [DESIGN.md](DESIGN.md)                                           | reference   | Design system, tokens, retheming for a client     |
 | [src/features/README.md](src/features/README.md)                 | reference   | Folder structure, import rules, where code goes   |
 | [src/components/ui/README.md](src/components/ui/README.md)       | reference   | shadcn modification policy, deliberate deviations |
 | [src/lib/supabase/README.md](src/lib/supabase/README.md)         | reference   | Why multiple clients, why no browser client       |

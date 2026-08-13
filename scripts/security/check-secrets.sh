@@ -48,8 +48,15 @@ scan() {
   fi
 }
 
-scan "Found hardcoded database connection string" \
-  '(postgres|postgresql|mysql|mongodb)://[^$[:space:]"'"'"']+:[^$[:space:]"'"'"']+@'
+# Localhost/127.0.0.1 connection strings are the local Supabase/Docker stack
+# defaults documented in the docs and READMEs — not credentials.
+DB_HITS=$(git grep -nIE -e '(postgres|postgresql|mysql|mongodb)://[^$[:space:]"'"'"']+:[^$[:space:]"'"'"']+@' -- "${CODE_PATHS[@]}" "${EXCLUDES[@]}" 2>/dev/null \
+  | grep -vE '@(127\.0\.0\.1|localhost)([:/]|$)' | cut -d: -f1,2 || true)
+if [ -n "$DB_HITS" ]; then
+  echo "::error::Found hardcoded database connection string"
+  indent "$DB_HITS"
+  FOUND=1
+fi
 
 scan "Found hardcoded AWS credentials" \
   '(AKIA[0-9A-Z]{16}|aws_secret_access_key[[:space:]]*=[[:space:]]*["'"'"'][^$])'
