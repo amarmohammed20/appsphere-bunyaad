@@ -2,71 +2,81 @@
 // enforcing nothing — happened twice, so green lint is not evidence. Each
 // case asserts the exact rule; files go to disk for import/no-cycle.
 
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, rmSync, rmdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 
 import { ESLint } from 'eslint';
+
+// Import targets, written but not linted. Keeping them synthetic means the
+// canary does not break when a real feature is added or removed.
+const FIXTURES = [
+  { path: 'src/features/__canary/server/__fixture.ts', code: `export const load = () => null;\n` },
+  { path: 'src/features/__canary/data/__fixture.ts', code: `export const labels = {};\n` },
+  { path: 'src/lib/auth/__fixture.ts', code: `export const requireUser = () => null;\n` },
+];
+
+const SUPABASE_IMPORT = `import { createSupabaseClient } from '@/lib/supabase/createSupabaseClient';\n`;
 
 const CASES = [
   {
     name: 'component imports a query',
     rule: 'boundaries/dependencies',
-    path: 'src/features/users/components/__canary.tsx',
-    code: `import { listUsers } from '../server/listUsers';\nexport const a = listUsers;\n`,
+    path: 'src/features/__canary/components/__canary.tsx',
+    code: `import { load } from '../server/__fixture';\nexport const a = load;\n`,
   },
   {
     name: 'feature imports another feature',
     rule: 'boundaries/dependencies',
-    path: 'src/features/__canary/components/__canary.tsx',
-    code: `import { usersLabels } from '@/features/users/data/labels';\nexport const b = usersLabels;\n`,
+    path: 'src/features/__canaryother/components/__canary.tsx',
+    code: `import { labels } from '@/features/__canary/data/__fixture';\nexport const b = labels;\n`,
   },
   {
     name: 'component imports the Supabase wrapper',
     rule: 'boundaries/dependencies',
-    path: 'src/features/users/components/__canary2.tsx',
-    code: `import { createSupabaseClient } from '@/lib/supabase/createSupabaseClient';\nexport const c = createSupabaseClient;\n`,
+    path: 'src/features/__canary/components/__canary2.tsx',
+    code: `${SUPABASE_IMPORT}export const c = createSupabaseClient;\n`,
   },
   {
     name: 'component imports the Supabase SDK directly',
     rule: 'boundaries/dependencies',
-    path: 'src/features/users/components/__canary3.tsx',
+    path: 'src/features/__canary/components/__canary3.tsx',
     code: `import { createSupabaseClient } from '@supabase/supabase-js';\nexport const d = createSupabaseClient;\n`,
   },
   {
     name: 'data imports something with behaviour',
     rule: 'boundaries/dependencies',
-    path: 'src/features/users/data/__canary.ts',
-    code: `import { createSupabaseClient } from '@/lib/supabase/createSupabaseClient';\nexport const e = createSupabaseClient;\n`,
+    path: 'src/features/__canary/data/__canary.ts',
+    code: `${SUPABASE_IMPORT}export const e = createSupabaseClient;\n`,
   },
   {
     name: 'HTTP handler imports Supabase instead of delegating',
     rule: 'boundaries/dependencies',
-    path: 'src/features/auth/api/__canary.ts',
-    code: `import { createSupabaseClient } from '@/lib/supabase/createSupabaseClient';\nexport const f = createSupabaseClient;\n`,
+    path: 'src/features/__canary/api/__canary.ts',
+    code: `${SUPABASE_IMPORT}export const f = createSupabaseClient;\n`,
   },
   {
     name: 'lib launders Supabase to components',
     rule: 'boundaries/dependencies',
     path: 'src/lib/__canary.ts',
-    code: `import { createSupabaseClient } from '@/lib/supabase/createSupabaseClient';\nexport const g = createSupabaseClient;\n`,
+    code: `${SUPABASE_IMPORT}export const g = createSupabaseClient;\n`,
   },
   {
     name: 'component imports the session helpers',
     rule: 'boundaries/dependencies',
-    path: 'src/features/users/components/__canary4.tsx',
-    code: `import { requireUser } from '@/lib/auth/session';\nexport const j = requireUser;\n`,
+    path: 'src/features/__canary/components/__canary4.tsx',
+    code: `import { requireUser } from '@/lib/auth/__fixture';\nexport const j = requireUser;\n`,
   },
   {
     name: 'lib launders the session helpers to components',
     rule: 'boundaries/dependencies',
     path: 'src/lib/__canary2.ts',
-    code: `import { requireUser } from '@/lib/auth/session';\nexport const k = requireUser;\n`,
+    code: `import { requireUser } from '@/lib/auth/__fixture';\nexport const k = requireUser;\n`,
   },
   {
     name: 'invented folder inside a feature falls to the catch-all',
     rule: 'boundaries/dependencies',
-    path: 'src/features/users/__canaryhelpers/__canary.ts',
-    code: `import { createSupabaseClient } from '@/lib/supabase/createSupabaseClient';\nexport const h = createSupabaseClient;\n`,
+    path: 'src/features/__canary/__canaryhelpers/__canary.ts',
+    code: `${SUPABASE_IMPORT}export const h = createSupabaseClient;\n`,
   },
   {
     name: 'unclassified folder is rejected',
@@ -79,29 +89,44 @@ const CASES = [
 // The cases above prove bad imports fail. This proves good ones still pass —
 // a broken `captured` template would deny every same-feature import and the
 // checks above would stay green.
-const KNOWN_GOOD = 'src/features/users/components/UsersTable.tsx';
+const KNOWN_GOOD = {
+  path: 'src/features/__canary/components/__canarygood.tsx',
+  code: `import { labels } from '../data/__fixture';\nexport const good = labels;\n`,
+};
 
-function writeCases() {
-  for (const { path, code } of CASES) {
+const WRITTEN = [...FIXTURES, ...CASES, KNOWN_GOOD];
+
+function writeFiles() {
+  for (const { path, code } of WRITTEN) {
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, code);
   }
 }
 
-function removeCases() {
-  for (const { path } of CASES) rmSync(path, { force: true });
+function removeFiles() {
+  for (const { path } of WRITTEN) rmSync(path, { force: true });
+
   rmSync('src/features/__canary', { recursive: true, force: true });
-  rmSync('src/features/users/__canaryhelpers', { recursive: true, force: true });
+  rmSync('src/features/__canaryother', { recursive: true, force: true });
   rmSync('src/__canaryjobs', { recursive: true, force: true });
+
+  // Only the fixture is ours. Here src/lib/auth holds the real session
+  // helpers so this no-ops, but in a clone that removed them it must not
+  // leave an empty directory behind.
+  try {
+    rmdirSync('src/lib/auth');
+  } catch {
+    // Not empty, or already gone.
+  }
 }
 
 let results;
 
 try {
-  writeCases();
-  results = await new ESLint().lintFiles([...CASES.map(({ path }) => path), KNOWN_GOOD]);
+  writeFiles();
+  results = await new ESLint().lintFiles([...CASES.map(({ path }) => path), KNOWN_GOOD.path]);
 } finally {
-  removeCases();
+  removeFiles();
 }
 
 const rulesByPath = new Map(
@@ -115,12 +140,12 @@ const failures = CASES.map(({ name, rule, path }) => {
     : `${name} — expected ${rule}, got ${fired.join(', ') || 'nothing'}`;
 }).filter(Boolean);
 
-const falsePositives = (rulesByPath.get(resolve(KNOWN_GOOD)) ?? []).filter((rule) =>
+const falsePositives = (rulesByPath.get(resolve(KNOWN_GOOD.path)) ?? []).filter((rule) =>
   rule.startsWith('boundaries/'),
 );
 
 if (falsePositives.length > 0) {
-  failures.push(`${KNOWN_GOOD} is legal but was rejected by ${falsePositives.join(', ')}`);
+  failures.push(`${KNOWN_GOOD.path} is legal but was rejected by ${falsePositives.join(', ')}`);
 }
 
 if (failures.length > 0) {

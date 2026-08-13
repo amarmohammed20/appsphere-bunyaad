@@ -11,10 +11,14 @@ const IMAGE_DIGEST = /^sha256:[0-9a-f]{64}$/;
 // same commit as the file doing the referencing.
 const isLocal = (ref) => ref.startsWith('./');
 
-// Our own reusable workflow is deliberately referenced by a moving tag, so a
-// fix reaches every repo without editing each one. Only the exact refs we
+// Our own reusable workflows are deliberately referenced by a moving tag, so
+// a fix reaches every repo without editing each one. Only the exact refs we
 // publish are exempt — `@main` or a branch would defeat the entire check.
-const OUR_REFS = ['amarmohammed20/appsphere-bunyaad/.github/workflows/pr-checks-reusable.yml@v1'];
+const OUR_REFS = [
+  'amarmohammed20/appsphere-bunyaad/.github/workflows/pr-checks-reusable.yml@v1',
+  'amarmohammed20/appsphere-bunyaad/.github/workflows/db-checks-reusable.yml@v1',
+  'amarmohammed20/appsphere-bunyaad/.github/workflows/security-gate-reusable.yml@v1',
+];
 
 function unpinnedRefsIn(path) {
   const lines = readFileSync(path, 'utf8').split('\n');
