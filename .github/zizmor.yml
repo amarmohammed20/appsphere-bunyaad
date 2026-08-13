@@ -1,0 +1,10 @@
+# Bunyaad's reusable workflows are deliberately referenced by the v1 moving
+# tag, so a fix there reaches every consuming repo without editing each one.
+# Everything else must stay hash-pinned. scripts/check-action-pinning.mjs is
+# the stricter gate on top: it allows only the exact refs we publish.
+rules:
+  unpinned-uses:
+    config:
+      policies:
+        amarmohammed20/appsphere-bunyaad/*: ref-pin
+        '*': hash-pin
